@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeuroUI</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="logo-group">
+        <img src="icons/icon48.png" alt="NeuroUI" class="logo-icon" width="28" height="28">
+        <h1>NeuroUI</h1>
+      </div>
+      <span class="version-badge">v1.1</span>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="status-bar">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-text" id="status-text">Inactive</span>
+    </div>
+
+    <!-- Ad Blocker Card -->
+    <div class="adblock-card">
+      <div class="adblock-info">
+        <span class="adblock-icon">🛡️</span>
+        <div class="adblock-text">
+          <span class="adblock-title">Ad Blocker</span>
+          <span class="adblock-stats" id="adblock-stats">0 ads blocked</span>
+        </div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="adblock-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <!-- CLS Score Display -->
+    <div class="cls-display" id="cls-display" style="display: none;">
+      <div class="cls-card cls-before">
+        <span class="cls-label">Before</span>
+        <span class="cls-value" id="cls-before-value">—</span>
+      </div>
+      <div class="cls-arrow">→</div>
+      <div class="cls-card cls-after">
+        <span class="cls-label">After</span>
+        <span class="cls-value" id="cls-after-value">—</span>
+      </div>
+    </div>
+
+    <!-- Profile Selection -->
+    <section class="profile-section">
+      <h2>Cognitive Profile</h2>
+      <div class="profile-grid">
+        <button class="profile-btn" id="btn-adhd" data-profile="adhd">
+          <span class="profile-emoji">⚡</span>
+          <span class="profile-name">ADHD</span>
+          <span class="profile-desc">Focus & clarity</span>
+        </button>
+        <button class="profile-btn" id="btn-dyslexia" data-profile="dyslexia">
+          <span class="profile-emoji">📖</span>
+          <span class="profile-name">Dyslexia</span>
+          <span class="profile-desc">Spacing & fonts</span>
+        </button>
+        <button class="profile-btn" id="btn-autism" data-profile="autism">
+          <span class="profile-emoji">🧘</span>
+          <span class="profile-name">Autism</span>
+          <span class="profile-desc">Calm & literal</span>
+        </button>
+        <button class="profile-btn" id="btn-custom" data-profile="custom">
+          <span class="profile-emoji">⚙️</span>
+          <span class="profile-name">Custom</span>
+          <span class="profile-desc">Your settings</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Custom Settings (hidden by default) -->
+    <section class="custom-settings" id="custom-settings" style="display: none;">
+      <div class="setting-row">
+        <label for="simplification-level">Text Simplification</label>
+        <input type="range" id="simplification-level" min="1" max="3" value="2">
+        <span class="setting-value" id="simplification-value">2</span>
+      </div>
+      <div class="setting-row">
+        <label for="distraction-level">Distraction Removal</label>
+        <select id="distraction-level">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <label for="spacing-multiplier">Spacing</label>
+        <input type="range" id="spacing-multiplier" min="0.5" max="3.0" step="0.1" value="1.2">
+        <span class="setting-value" id="spacing-value">1.2×</span>
+      </div>
+      <div class="setting-row">
+        <label for="color-mode">Color Mode</label>
+        <select id="color-mode">
+          <option value="original">Original</option>
+          <option value="muted">Muted</option>
+          <option value="warm">Warm</option>
+          <option value="high_contrast">High Contrast</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Action Buttons -->
+    <div class="action-group">
+      <button class="btn-primary" id="btn-activate">
+        <span class="btn-icon">🧠</span> Activate NeuroUI
+      </button>
+      <button class="btn-secondary" id="btn-reset" style="display: none;">
+        <span class="btn-icon">↩️</span> Reset Page
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="popup-footer">
+      <span>Powered by W3C COGA Guidelines + Gemini AI</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

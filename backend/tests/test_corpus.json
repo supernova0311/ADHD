@@ -1,0 +1,122 @@
+[
+  {
+    "id": "academic_high",
+    "grade_target": "16+",
+    "source": "Simulated academic paper",
+    "text": "The epistemological ramifications of quantum decoherence necessitate a fundamental reconceptualization of the observer-measurement paradigm. Notwithstanding the substantial empirical corroboration of Copenhagen interpretations, the proliferation of many-worlds ontological frameworks has engendered considerable philosophical consternation among practitioners of theoretical physics, subsequently precipitating a paradigmatic crisis of unprecedented magnitude within the discipline."
+  },
+  {
+    "id": "legal_complex",
+    "grade_target": "14+",
+    "source": "Simulated legal document",
+    "text": "Notwithstanding any provision herein to the contrary, the indemnifying party shall hold harmless and indemnify the indemnified party from and against any and all claims, damages, losses, costs and expenses, including but not limited to reasonable attorneys fees, arising out of or in connection with any breach of any representation, warranty, covenant or agreement made by the indemnifying party in this Agreement."
+  },
+  {
+    "id": "medical_jargon",
+    "grade_target": "12+",
+    "source": "Simulated medical text",
+    "text": "The patient presented with acute exacerbation of chronic obstructive pulmonary disease, characterized by increased dyspnea, productive cough with purulent sputum, and bilateral wheezing on auscultation. Arterial blood gas analysis revealed hypoxemia with respiratory acidosis, necessitating non-invasive positive pressure ventilation and intravenous corticosteroid administration."
+  },
+  {
+    "id": "news_moderate",
+    "grade_target": "10",
+    "source": "Simulated news article",
+    "text": "The city council voted unanimously to approve the controversial rezoning proposal, despite vocal opposition from neighborhood associations. The plan, which would allow high-density residential development along the waterfront corridor, has been the subject of contentious debate for several months, with proponents arguing it would address the housing shortage while critics contend it would fundamentally alter the character of the historic district."
+  },
+  {
+    "id": "wikipedia_moderate",
+    "grade_target": "9",
+    "source": "Simulated Wikipedia",
+    "text": "Photosynthesis is a biological process used by most plants, algae, and some bacteria to convert light energy into chemical energy. This energy is stored in glucose molecules, which the organism can later use for fuel. The process primarily occurs in chloroplasts, which contain the green pigment chlorophyll that absorbs light. Photosynthesis is essential for life on Earth because it produces the oxygen that most organisms need to breathe."
+  },
+  {
+    "id": "technical_docs",
+    "grade_target": "11",
+    "source": "Simulated technical documentation",
+    "text": "To configure the authentication middleware, instantiate the OAuth2PasswordBearer class with the token URL endpoint as the first positional argument. Subsequently, inject the resulting dependency into your route handlers via FastAPIs dependency injection system. The middleware will automatically validate the bearer token against the configured JWKS endpoint and populate the request state with the decoded claims object."
+  },
+  {
+    "id": "simple_grade3",
+    "grade_target": "3",
+    "source": "Simple text",
+    "text": "The dog ran fast. It was a big brown dog. The dog liked to play in the park. It chased a red ball. The ball went far. The dog was happy."
+  },
+  {
+    "id": "metaphor_heavy",
+    "grade_target": "8",
+    "source": "Idiom-heavy text (autism challenge)",
+    "text": "The CEO said the company needs to think outside the box and hit the ground running this quarter. She emphasized that employees should not rest on their laurels, as the competition is breathing down their necks. Its time to bite the bullet and make the tough decisions that will separate the wheat from the chaff."
+  },
+  {
+    "id": "dense_instructions",
+    "grade_target": "10",
+    "source": "Dense instructional text (ADHD challenge)",
+    "text": "Before proceeding with the installation, ensure that you have downloaded the latest version of the software from the official website, verified the checksum of the downloaded file against the published hash, backed up all existing configuration files to a separate directory, disabled any antivirus software that might interfere with the installation process, and confirmed that your system meets the minimum hardware requirements as specified in the compatibility matrix on page 47 of the user manual."
+  },
+  {
+    "id": "nested_clauses",
+    "grade_target": "13",
+    "source": "Syntactically complex text (high dependency distance)",
+    "text": "The report, which was commissioned by the committee that the board appointed last year to investigate the allegations that several senior managers had, despite repeated warnings from the compliance department, continued to authorize transactions that violated the regulations that had been enacted in response to the crisis, concluded that systemic failures were to blame."
+  },
+  {
+    "id": "passive_voice_heavy",
+    "grade_target": "11",
+    "source": "Passive voice text",
+    "text": "The experiment was conducted by the researchers. The results were analyzed by the team. A significant correlation was found between the variables. The findings were published in a peer-reviewed journal. It was concluded that the hypothesis was supported by the data. Further research was recommended by the authors."
+  },
+  {
+    "id": "financial_jargon",
+    "grade_target": "14",
+    "source": "Financial text",
+    "text": "The amortization of the intangible assets, coupled with the impairment charge on goodwill recognized in the third quarter, resulted in a non-cash write-down that materially impacted the consolidated statements of comprehensive income. Excluding these non-recurring items, adjusted EBITDA demonstrated resilient year-over-year growth, attributable primarily to favorable foreign exchange movements and operational leverage derived from the restructuring initiative."
+  },
+  {
+    "id": "bureaucratic",
+    "grade_target": "15",
+    "source": "Government document",
+    "text": "In accordance with the provisions set forth in Section 42(a)(1)(B) of the aforementioned statute, all entities that have heretofore been in compliance with the regulatory framework established pursuant to Executive Order 13563 shall be required to submit, no later than ninety calendar days from the effective date of this memorandum, a comprehensive remediation plan delineating the specific measures to be undertaken to ensure continued adherence to the amended guidelines."
+  },
+  {
+    "id": "double_negative",
+    "grade_target": "10",
+    "source": "Double negative text",
+    "text": "It is not uncommon for students to not fully understand the implications of not completing their assignments on time. The professor did not fail to notice that not insignificant number of students were not unfamiliar with the concept, yet they could not help but not apply it incorrectly."
+  },
+  {
+    "id": "sensory_overload",
+    "grade_target": "7",
+    "source": "Visually described sensory content (autism challenge)",
+    "text": "The brightly flashing neon signs illuminated the bustling street corner where dozens of street vendors shouted over blaring music from multiple competing speakers. The overwhelming aroma of spices mixed with car exhaust filled the air. Crowds pushed and jostled in every direction while car horns honked incessantly and a fire truck siren wailed in the distance."
+  },
+  {
+    "id": "multi_step_process",
+    "grade_target": "9",
+    "source": "Multi-step instructions (executive function challenge)",
+    "text": "To complete your registration, first verify your email address by clicking the link we sent, then return to this page and fill in your profile details including your full name, date of birth, and mailing address, after which you will need to upload a government-issued photo ID, select your preferred payment method from the dropdown menu, agree to the terms of service by checking both checkboxes, and finally click the green Submit button at the bottom of the page."
+  },
+  {
+    "id": "scientific_abstract",
+    "grade_target": "14",
+    "source": "Scientific abstract",
+    "text": "We present a novel methodology for the characterization of topological insulator surface states utilizing angle-resolved photoemission spectroscopy in conjunction with density functional theory calculations. Our findings demonstrate an anomalous Dirac cone dispersion at the gamma point, attributable to strong spin-orbit coupling effects that engender a non-trivial Berry phase. These results corroborate theoretical predictions regarding the robustness of topological surface states against perturbative disorder."
+  },
+  {
+    "id": "insurance_policy",
+    "grade_target": "15",
+    "source": "Insurance policy language",
+    "text": "The insurer shall not be liable for any loss or damage arising directly or indirectly from nuclear reaction, nuclear radiation or radioactive contamination, howsoever caused, or from any weapon or device employing atomic or nuclear fission or fusion, irrespective of whether the insured peril arises from or is contributed to by, results from or is aggravated by the nuclear incident, subject to the exclusions enumerated in Schedule B appended hereto."
+  },
+  {
+    "id": "conversational_simple",
+    "grade_target": "5",
+    "source": "Casual text",
+    "text": "Hey, did you see the new movie that came out last week? I went with my friends on Friday night and it was really good. The story was about a group of kids who find a treasure map. They go on an adventure to find the treasure. There are some scary parts but mostly it is fun and exciting."
+  },
+  {
+    "id": "mixed_complexity",
+    "grade_target": "11",
+    "source": "Mixed complexity paragraphs",
+    "text": "Climate change is real. The science is clear. However, the multifaceted socioeconomic implications of implementing aggressive decarbonization strategies necessitate careful consideration of the disproportionate impact on vulnerable populations and developing economies. Simply put, we need to act fast. But we also need to make sure that the solutions we choose do not inadvertently exacerbate existing inequalities or undermine the economic stability of nations that are least responsible for historical greenhouse gas emissions."
+  }
+]

@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: neuroui-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false  # You'll set this manually in Render dashboard
