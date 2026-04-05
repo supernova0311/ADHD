@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NeuroUI — Cognitive Accessibility Engine",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "AI-powered browser extension that dynamically adapts web content to reduce cognitive load for neurodivergent users (ADHD, Dyslexia, Autism). Built-in ad blocker for distraction-free browsing. Built on W3C COGA guidelines.",
   "permissions": [
     "activeTab",
@@ -10,7 +10,9 @@
     "declarativeNetRequest"
   ],
   "host_permissions": [
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "https://*.onrender.com/*",
+    "https://*.railway.app/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -21,6 +23,15 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
+    }
+  },
+  "commands": {
+    "toggle-neuroui": {
+      "suggested_key": {
+        "default": "Alt+N",
+        "mac": "Alt+N"
+      },
+      "description": "Toggle NeuroUI on/off"
     }
   },
   "content_scripts": [

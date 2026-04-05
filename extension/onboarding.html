@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeuroUI — Find Your Profile</title>
+  <link rel="stylesheet" href="onboarding.css">
+</head>
+<body>
+  <div class="quiz-container">
+    <div class="quiz-header">
+      <h1>&#129513; Find Your Profile</h1>
+      <p>Answer 6 quick questions about how you experience the web.<br>We'll recommend the best cognitive profile for you.</p>
+    </div>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+    </div>
+
+    <!-- Question 1 -->
+    <div class="question-card active" data-q="0">
+      <div class="question-number">Question 1 of 6</div>
+      <div class="question-text">When reading a long article, what happens most often?</div>
+      <div class="answer-options">
+        <button class="answer-btn" data-scores='{"adhd":3,"dyslexia":0,"autism":0}'>
+          <span class="answer-emoji">&#128565;</span> I get distracted and never finish it
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":3,"autism":0}'>
+          <span class="answer-emoji">&#128260;</span> I re-read the same lines multiple times
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":3}'>
+          <span class="answer-emoji">&#128548;</span> Vague or ambiguous language frustrates me
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":1,"dyslexia":1,"autism":1}'>
+          <span class="answer-emoji">&#128077;</span> I usually read through fine
+        </button>
+      </div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="question-card" data-q="1">
+      <div class="question-number">Question 2 of 6</div>
+      <div class="question-text">How do animations and moving elements on websites make you feel?</div>
+      <div class="answer-options">
+        <button class="answer-btn" data-scores='{"adhd":3,"dyslexia":1,"autism":1}'>
+          <span class="answer-emoji">&#129522;</span> They pull my attention away from what I'm reading
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":3}'>
+          <span class="answer-emoji">&#128560;</span> They feel overwhelming or unpredictable
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":2,"autism":0}'>
+          <span class="answer-emoji">&#129335;</span> They make text harder to track visually
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":0}'>
+          <span class="answer-emoji">&#128522;</span> They don't bother me much
+        </button>
+      </div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="question-card" data-q="2">
+      <div class="question-number">Question 3 of 6</div>
+      <div class="question-text">When you encounter phrases like "break a leg" or "it's raining cats and dogs", you...</div>
+      <div class="answer-options">
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":3}'>
+          <span class="answer-emoji">&#10067;</span> Sometimes take them literally or find them confusing
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":1,"dyslexia":0,"autism":0}'>
+          <span class="answer-emoji">&#9197;</span> I skip past them without thinking
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":1,"autism":0}'>
+          <span class="answer-emoji">&#128012;</span> They slow me down a bit
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":0}'>
+          <span class="answer-emoji">&#9989;</span> I understand them easily
+        </button>
+      </div>
+    </div>
+
+    <!-- Question 4 -->
+    <div class="question-card" data-q="3">
+      <div class="question-number">Question 4 of 6</div>
+      <div class="question-text">What's your biggest frustration with text-heavy web pages?</div>
+      <div class="answer-options">
+        <button class="answer-btn" data-scores='{"adhd":3,"dyslexia":0,"autism":1}'>
+          <span class="answer-emoji">&#128203;</span> Too much information at once — I can't focus on what matters
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":3,"autism":0}'>
+          <span class="answer-emoji">&#128065;</span> Letters and words seem to jump around or blur together
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":3}'>
+          <span class="answer-emoji">&#127912;</span> Bright colors, inconsistent layouts, or unexpected changes
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":0}'>
+          <span class="answer-emoji">&#129300;</span> Nothing in particular
+        </button>
+      </div>
+    </div>
+
+    <!-- Question 5 -->
+    <div class="question-card" data-q="4">
+      <div class="question-number">Question 5 of 6</div>
+      <div class="question-text">When following multi-step instructions online (like forms or tutorials), you typically...</div>
+      <div class="answer-options">
+        <button class="answer-btn" data-scores='{"adhd":3,"dyslexia":1,"autism":0}'>
+          <span class="answer-emoji">&#127939;</span> Skip ahead or lose track of which step I'm on
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":3,"autism":0}'>
+          <span class="answer-emoji">&#128207;</span> Need to use my finger or cursor to track each line
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":3}'>
+          <span class="answer-emoji">&#9888;</span> Get stuck if the instructions aren't perfectly clear and literal
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":0}'>
+          <span class="answer-emoji">&#128076;</span> Follow them without much trouble
+        </button>
+      </div>
+    </div>
+
+    <!-- Question 6 -->
+    <div class="question-card" data-q="5">
+      <div class="question-number">Question 6 of 6</div>
+      <div class="question-text">What would help you the most when browsing the web?</div>
+      <div class="answer-options">
+        <button class="answer-btn" data-scores='{"adhd":3,"dyslexia":0,"autism":0}'>
+          <span class="answer-emoji">&#127919;</span> Remove distractions and highlight only the key points
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":3,"autism":0}'>
+          <span class="answer-emoji">&#128292;</span> Bigger spacing between letters and lines, cleaner fonts
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":0,"dyslexia":0,"autism":3}'>
+          <span class="answer-emoji">&#129496;</span> Calm colors, no surprises, and plain literal language
+        </button>
+        <button class="answer-btn" data-scores='{"adhd":1,"dyslexia":1,"autism":1}'>
+          <span class="answer-emoji">&#128295;</span> A bit of everything — let me customize
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="quiz-nav" id="quiz-nav">
+      <button class="nav-btn back" id="btn-back" style="visibility: hidden;">&#8592; Back</button>
+      <button class="nav-btn next" id="btn-next" disabled>Next &#8594;</button>
+    </div>
+
+    <!-- Result Card -->
+    <div class="result-card" id="result-card">
+      <div class="result-profile-icon" id="result-icon"></div>
+      <div class="result-profile-name" id="result-name"></div>
+      <div class="result-description" id="result-desc"></div>
+      <div class="result-scores" id="result-scores"></div>
+      <button class="result-action" id="result-action">Apply This Profile</button>
+    </div>
+  </div>
+
+  <script src="onboarding.js"></script>
+</body>
+</html>

@@ -14,7 +14,7 @@
         <img src="icons/icon48.png" alt="NeuroUI" class="logo-icon" width="28" height="28">
         <h1>NeuroUI</h1>
       </div>
-      <span class="version-badge">v1.1</span>
+      <span class="version-badge">v1.2</span>
     </header>
 
     <!-- Status Bar -->
@@ -53,7 +53,10 @@
 
     <!-- Profile Selection -->
     <section class="profile-section">
-      <h2>Cognitive Profile</h2>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;">
+        <h2>Cognitive Profile</h2>
+        <a href="#" id="quiz-link" style="font-size: 11px; color: #6366f1; text-decoration: none; cursor: pointer;">🧩 Find my profile</a>
+      </div>
       <div class="profile-grid">
         <button class="profile-btn" id="btn-adhd" data-profile="adhd">
           <span class="profile-emoji">⚡</span>
@@ -113,6 +116,9 @@
     <div class="action-group">
       <button class="btn-primary" id="btn-activate">
         <span class="btn-icon">🧠</span> Activate NeuroUI
+      </button>
+      <button class="btn-secondary" id="btn-heatmap" title="Visualize cognitive load across the page">
+        <span class="btn-icon">🔥</span> Cognitive Heatmap
       </button>
       <button class="btn-secondary" id="btn-reset" style="display: none;">
         <span class="btn-icon">↩️</span> Reset Page

@@ -10,6 +10,8 @@ Endpoint: POST /api/process
 from __future__ import annotations
 
 import os
+import time
+import hashlib
 import logging
 from typing import Optional, List
 from contextlib import asynccontextmanager
@@ -63,12 +65,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — Allow Chrome extension origins
+# CORS — Restrict to Chrome extension and local development origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to chrome-extension:// origins
+    allow_origins=[
+        "chrome-extension://*",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -126,6 +133,18 @@ class ProcessResponse(BaseModel):
     metrics: dict
 
 
+# --- Response Cache ---
+# In-memory cache to avoid re-processing same content & reduce Gemini API calls
+_response_cache: dict = {}
+MAX_CACHE_SIZE = 100
+
+
+def _make_cache_key(chunks: list, profile: str) -> str:
+    """Create a deterministic cache key from request content."""
+    content = f"{profile}:{'|'.join(chunks[:5])}"
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+
 # --- Endpoints ---
 
 @app.post("/api/process", response_model=ProcessResponse)
@@ -138,7 +157,17 @@ async def process_content(request: ProcessRequest):
     before/after Cognitive Load Scores.
     """
     try:
+        t_start = time.perf_counter()
         api_key = os.getenv("GEMINI_API_KEY")
+
+        # Check cache first
+        cache_key = _make_cache_key(request.chunks, request.profile)
+        if cache_key in _response_cache:
+            logger.info(f"Cache HIT for key={cache_key[:8]}... profile={request.profile}")
+            cached = _response_cache[cache_key]
+            cached.metrics["cache_hit"] = True
+            cached.metrics["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
+            return cached
 
         # Convert Pydantic models to dicts for internal processing
         dom_snapshot = None
@@ -157,7 +186,13 @@ async def process_content(request: ProcessRequest):
             api_key=api_key,
         )
 
-        return ProcessResponse(
+        # Add latency to metrics
+        latency_ms = round((time.perf_counter() - t_start) * 1000, 1)
+        result["metrics"]["latency_ms"] = latency_ms
+        result["metrics"]["cache_hit"] = False
+        logger.info(f"Processed in {latency_ms}ms | profile={request.profile} | chunks={len(request.chunks)}")
+
+        response = ProcessResponse(
             simplified_chunks=result["simplified_chunks"],
             visual_css=result["visual_css"],
             focus_css=result["focus_actions"]["css_rules"],
@@ -169,12 +204,73 @@ async def process_content(request: ProcessRequest):
             metrics=result["metrics"],
         )
 
+        # Store in cache (evict oldest if full)
+        if len(_response_cache) >= MAX_CACHE_SIZE:
+            oldest_key = next(iter(_response_cache))
+            del _response_cache[oldest_key]
+        _response_cache[cache_key] = response
+
+        return response
+
     except Exception as e:
         logger.error(f"Processing error: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Processing failed: {str(e)}"
         )
+
+
+class HeatmapRequest(BaseModel):
+    chunks: List[str] = Field(..., description="Text chunks to score", min_length=1)
+
+
+class HeatmapScore(BaseModel):
+    cls: float
+    level: str  # "low", "moderate", "high", "critical"
+    text_complexity: float
+    syntactic_load: float
+    grade_level: str
+
+
+@app.post("/api/heatmap")
+async def compute_heatmap(request: HeatmapRequest):
+    """
+    Compute per-paragraph Cognitive Load Scores for heatmap visualization.
+    Returns a CLS score + severity level for each text chunk.
+    """
+    from core.cognitive_metrics import compute_cls
+
+    scores = []
+    for chunk in request.chunks:
+        if not chunk or len(chunk.strip()) < 10:
+            scores.append(HeatmapScore(
+                cls=0, level="low", text_complexity=0,
+                syntactic_load=0, grade_level="N/A"
+            ))
+            continue
+
+        result = compute_cls(chunk)
+        cls_val = result["cls"]
+
+        # Classify severity
+        if cls_val < 25:
+            level = "low"
+        elif cls_val < 45:
+            level = "moderate"
+        elif cls_val < 65:
+            level = "high"
+        else:
+            level = "critical"
+
+        scores.append(HeatmapScore(
+            cls=cls_val,
+            level=level,
+            text_complexity=result["text_complexity"],
+            syntactic_load=result["syntactic_load"],
+            grade_level=result["grade_level"],
+        ))
+
+    return {"scores": scores}
 
 
 @app.get("/api/health")
@@ -185,7 +281,7 @@ async def health_check():
         "status": "healthy",
         "service": "NeuroUI Backend",
         "llm_enabled": bool(api_key),
-        "version": "1.0.0",
+        "version": "1.2.0",
     }
 
 

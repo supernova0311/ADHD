@@ -8,7 +8,17 @@
  * persisted via chrome.storage.local.
  */
 
-const API_BASE = 'http://localhost:8000';
+const DEFAULT_API_BASE = 'http://localhost:8000';
+
+// --- Dynamic API URL ---
+async function getAPIBase() {
+  try {
+    const { apiUrl } = await chrome.storage.local.get('apiUrl');
+    return apiUrl || DEFAULT_API_BASE;
+  } catch {
+    return DEFAULT_API_BASE;
+  }
+}
 
 // --- Message Handler ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -20,10 +30,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === 'HEALTH_CHECK') {
-    fetch(`${API_BASE}/api/health`)
-      .then(r => r.json())
-      .then(data => sendResponse(data))
-      .catch(error => sendResponse({ error: error.message }));
+    getAPIBase().then(apiBase => {
+      fetch(`${apiBase}/api/health`)
+        .then(r => r.json())
+        .then(data => sendResponse(data))
+        .catch(error => sendResponse({ error: error.message }));
+    });
     return true;
   }
 });
@@ -31,9 +43,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function handleAPICall(message) {
   const { endpoint, method, body } = message;
+  const apiBase = await getAPIBase();
 
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(`${apiBase}${endpoint}`, {
       method: method || 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -55,6 +68,33 @@ async function handleAPICall(message) {
 }
 
 
+// --- Keyboard Shortcut Handler ---
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === 'toggle-neuroui') {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) return;
+
+    const { isActive, profile } = await chrome.storage.local.get(['isActive', 'profile']);
+
+    if (isActive) {
+      // Deactivate
+      chrome.tabs.sendMessage(tab.id, { action: 'DEACTIVATE' }).catch(() => {});
+      await chrome.storage.local.set({ isActive: false, cls_before: null, cls_after: null });
+      console.log('[NeuroUI] Deactivated via keyboard shortcut');
+    } else if (profile) {
+      // Activate with last-used profile
+      chrome.tabs.sendMessage(tab.id, {
+        action: 'ACTIVATE',
+        profile: profile,
+        settings: {},
+      }).catch(() => {});
+      await chrome.storage.local.set({ isActive: true });
+      console.log(`[NeuroUI] Activated via keyboard shortcut (${profile})`);
+    }
+  }
+});
+
+
 // --- Extension Install/Update Handler ---
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
@@ -68,7 +108,12 @@ chrome.runtime.onInstalled.addListener((details) => {
       adBlockEnabled: true,
       totalAdsBlocked: 0,
       sessionAdsBlocked: 0,
+      apiUrl: DEFAULT_API_BASE,
+      quizCompleted: false,
     });
+
+    // Open onboarding quiz on first install
+    chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
   }
 });
 

@@ -76,19 +76,53 @@ SYSTEM_PROMPTS = {
 
 # Common jargon → plain language substitutions
 JARGON_MAP = {
+    # Formal → Simple verbs
     r'\butilize\b': 'use',
     r'\bfacilitate\b': 'help',
-    r'\bsubsequently\b': 'then',
-    r'\bnevertheless\b': 'but',
-    r'\bnotwithstanding\b': 'despite',
     r'\bcommence\b': 'start',
     r'\bterminate\b': 'end',
     r'\bascertain\b': 'find out',
-    r'\bameliorati\w+\b': 'improve',
-    r'\bexpedit\w+\b': 'speed up',
     r'\bdelineate\b': 'describe',
     r'\bpromulgate\b': 'announce',
+    r'\bprocure\b': 'get',
+    r'\bengender\b': 'cause',
+    r'\bconvene\b': 'meet',
+    r'\bdisseminate\b': 'share',
+    r'\belucidate\b': 'explain',
+    r'\bexacerbate\b': 'worsen',
+    r'\bmitigate\b': 'reduce',
+    r'\baugment\b': 'increase',
+    r'\boptimize\b': 'improve',
+    r'\bleverage\b': 'use',
+    r'\bsuccumb\b': 'give in',
+    r'\bcoalesce\b': 'merge',
+    r'\bascribe\b': 'attribute',
+    r'\brelinquish\b': 'give up',
+    r'\bcircumvent\b': 'avoid',
+    r'\bpermeate\b': 'spread through',
+    r'\bpreclude\b': 'prevent',
+    r'\bstipulate\b': 'require',
+    r'\bsubstantiate\b': 'prove',
+    r'\bsupersede\b': 'replace',
+    r'\btranscend\b': 'go beyond',
+    # Formal → Simple adjectives/adverbs
+    r'\bsubsequently\b': 'then',
+    r'\bnevertheless\b': 'but',
+    r'\bnotwithstanding\b': 'despite',
+    r'\bconcomitant\b': 'related',
+    r'\bubiquitous\b': 'widespread',
+    r'\binnumerable\b': 'many',
+    r'\bsuperfluous\b': 'extra',
+    r'\bpernicious\b': 'harmful',
+    r'\bpurportedly\b': 'supposedly',
+    r'\bostensibly\b': 'seemingly',
+    r'\bheretofore\b': 'until now',
+    # Regex-capable word families
+    r'\bameliorati\w+\b': 'improve',
+    r'\bexpedit\w+\b': 'speed up',
     r'\bperpetuat\w+\b': 'continue',
+    r'\bproliferati\w+\b': 'spread',
+    # Wordy phrases → Simple
     r'\bin order to\b': 'to',
     r'\bdue to the fact that\b': 'because',
     r'\bat this point in time\b': 'now',
@@ -100,6 +134,36 @@ JARGON_MAP = {
     r'\bin conjunction with\b': 'with',
     r'\bfor the purpose of\b': 'to',
     r'\bin spite of the fact that\b': 'although',
+    r'\bon the basis of\b': 'based on',
+    r'\bin the near future\b': 'soon',
+    r'\bat the present time\b': 'now',
+    r'\bin close proximity to\b': 'near',
+    r'\bin the absence of\b': 'without',
+    r'\bwith the exception of\b': 'except for',
+    r'\bfor the duration of\b': 'during',
+    r'\bin the majority of cases\b': 'usually',
+    r'\bin accordance with\b': 'following',
+    r'\bas a consequence of\b': 'because of',
+    r'\bwith respect to\b': 'about',
+    r'\bon a regular basis\b': 'regularly',
+    r'\bin a timely manner\b': 'quickly',
+    r'\btake into consideration\b': 'consider',
+    r'\bmake a determination\b': 'decide',
+    r'\bgive consideration to\b': 'consider',
+    r'\bis indicative of\b': 'shows',
+    r'\bis in a position to\b': 'can',
+    r'\bhas the capacity to\b': 'can',
+    # Buzzwords → Plain
+    r'\bparadigm\b': 'model',
+    r'\bsynergy\b': 'teamwork',
+    r'\bstakeholder\b': 'person involved',
+    r'\bholistic\b': 'complete',
+    r'\bmethodology\b': 'method',
+    r'\bimplementation\b': 'setup',
+    r'\bscalable\b': 'flexible',
+    r'\beckosystem\b': 'system',
+    r'\bactionable\b': 'useful',
+    r'\bincentivize\b': 'encourage',
 }
 
 
@@ -205,20 +269,32 @@ async def simplify_text(
     # Step 1: Always apply rule-based pre-processing
     preprocessed = _rule_based_simplify(text)
 
-    # Step 2: Try LLM-powered simplification
+    # Step 2: Decide whether LLM is needed
     simplified = None
     method = "rule_based"
 
-    if api_key and _gemini_available:
-        try:
-            simplified = await _llm_simplify(preprocessed, profile, api_key)
-            if simplified and _validate_simplification(text, simplified):
-                method = "llm"
-            else:
-                simplified = None  # Fall back to rule-based
-        except Exception as e:
-            logger.error(f"LLM simplification failed: {e}")
-            simplified = None
+    # Skip LLM for text that's already simple (saves time + API quota)
+    text_is_simple = readability_before >= 70  # Flesch >= 70 = easy
+    text_is_short = len(text.split()) < 25
+
+    if api_key and _gemini_available and not text_is_simple and not text_is_short:
+        # Check circuit breaker
+        if not _is_circuit_open():
+            try:
+                simplified = await _llm_simplify(preprocessed, profile, api_key)
+                if simplified and _validate_simplification(text, simplified):
+                    method = "llm"
+                    _record_llm_success()
+                else:
+                    simplified = None  # Fall back to rule-based
+            except Exception as e:
+                logger.error(f"LLM simplification failed: {e}")
+                _record_llm_failure()
+                simplified = None
+        else:
+            logger.info("Circuit breaker OPEN — skipping LLM, using rule-based")
+    elif text_is_simple:
+        logger.info(f"Text already simple (FRE={readability_before:.0f}), skipping LLM")
 
     if simplified is None:
         simplified = preprocessed
@@ -234,11 +310,49 @@ async def simplify_text(
     }
 
 
+# --- Circuit Breaker for Rate Limits ---
+import time as _time
+
+_llm_failures = 0
+_llm_circuit_open_until = 0.0
+_CIRCUIT_THRESHOLD = 2      # Open after 2 consecutive failures
+_CIRCUIT_COOLDOWN = 60.0    # Stay open for 60 seconds
+
+
+def _is_circuit_open() -> bool:
+    if _llm_failures >= _CIRCUIT_THRESHOLD:
+        if _time.time() < _llm_circuit_open_until:
+            return True
+        # Cooldown expired — reset
+        _reset_circuit()
+    return False
+
+
+def _record_llm_failure():
+    global _llm_failures, _llm_circuit_open_until
+    _llm_failures += 1
+    if _llm_failures >= _CIRCUIT_THRESHOLD:
+        _llm_circuit_open_until = _time.time() + _CIRCUIT_COOLDOWN
+        logger.warning(f"Circuit breaker OPENED — skipping LLM for {_CIRCUIT_COOLDOWN}s")
+
+
+def _record_llm_success():
+    global _llm_failures, _llm_circuit_open_until
+    _llm_failures = 0
+    _llm_circuit_open_until = 0.0
+
+
+def _reset_circuit():
+    global _llm_failures, _llm_circuit_open_until
+    _llm_failures = 0
+    _llm_circuit_open_until = 0.0
+
+
 async def _llm_simplify(text: str, profile: str, api_key: str) -> Optional[str]:
-    """Call Gemini for text simplification. Handles multiple SDK versions."""
-    
+    """Call Gemini for text simplification with retry + backoff."""
+
     system_prompt = SYSTEM_PROMPTS.get(profile, SYSTEM_PROMPTS["custom"])
-    
+
     prompt = f"""{system_prompt}
 
 ---
@@ -255,7 +369,7 @@ Provide ONLY the simplified text. Do not include any preamble, explanation, or m
             "gemini-2.0-flash",
             generation_config=genai.types.GenerationConfig(
                 temperature=0.3,
-                max_output_tokens=2048,
+                max_output_tokens=1024,  # Reduced for speed
             ),
         )
         response = await model.generate_content_async(prompt)
@@ -265,39 +379,65 @@ Provide ONLY the simplified text. Do not include any preamble, explanation, or m
         # SDK too old for GenerativeModel — try REST fallback
         pass
     except Exception as e:
-        logger.error(f"Gemini SDK error: {e}")
+        error_str = str(e)
+        # If rate limited, retry once after a short delay
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            logger.warning("Rate limited by Gemini — retrying in 2s...")
+            import asyncio
+            await asyncio.sleep(2)
+            try:
+                response = await model.generate_content_async(prompt)
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as retry_err:
+                logger.error(f"Gemini retry also failed: {retry_err}")
+                raise  # Let circuit breaker handle it
+        else:
+            logger.error(f"Gemini SDK error: {e}")
 
-    # Fallback: Direct REST API call (works regardless of SDK version)
-    try:
-        import urllib.request
-        import json
+    # Fallback: Direct REST API call with retry
+    for attempt in range(2):
+        try:
+            import urllib.request
+            import json
 
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.0-flash:generateContent?key={api_key}"
-        )
-        payload = json.dumps({
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.3,
-                "maxOutputTokens": 2048,
-            },
-        }).encode("utf-8")
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"gemini-2.0-flash:generateContent"
+            )
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 1024,
+                },
+            }).encode("utf-8")
 
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            candidates = data.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts:
-                    return parts[0].get("text", "").strip()
-    except Exception as e:
-        logger.error(f"Gemini REST fallback failed: {e}")
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": api_key,
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "").strip()
+        except Exception as e:
+            error_str = str(e)
+            if ("429" in error_str or "RESOURCE_EXHAUSTED" in error_str) and attempt == 0:
+                logger.warning("REST rate limited — retrying in 3s...")
+                import asyncio
+                await asyncio.sleep(3)
+                continue
+            logger.error(f"Gemini REST fallback failed: {e}")
+            break
 
     return None
+
 

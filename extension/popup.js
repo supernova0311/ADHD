@@ -95,6 +95,21 @@ function setupEventListeners() {
   // Reset button
   btnReset.addEventListener('click', handleReset);
 
+  // Heatmap button
+  const btnHeatmap = document.getElementById('btn-heatmap');
+  if (btnHeatmap) {
+    btnHeatmap.addEventListener('click', handleHeatmap);
+  }
+
+  // Quiz link
+  const quizLink = document.getElementById('quiz-link');
+  if (quizLink) {
+    quizLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html') });
+    });
+  }
+
   // Custom settings sliders
   const simplificationSlider = document.getElementById('simplification-level');
   const spacingSlider = document.getElementById('spacing-multiplier');
@@ -110,6 +125,32 @@ function setupEventListeners() {
       document.getElementById('spacing-value').textContent = `${e.target.value}×`;
     });
   }
+}
+
+
+async function handleHeatmap() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+
+  const btn = document.getElementById('btn-heatmap');
+  btn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing...';
+  btn.disabled = true;
+
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, { action: 'HEATMAP' });
+    if (response && response.success) {
+      if (response.removed) {
+        btn.innerHTML = '<span class="btn-icon">🔥</span> Cognitive Heatmap';
+      } else {
+        btn.innerHTML = '<span class="btn-icon">✅</span> Heatmap Active';
+      }
+    } else {
+      btn.innerHTML = '<span class="btn-icon">❌</span> ' + (response?.error || 'Failed');
+    }
+  } catch (err) {
+    btn.innerHTML = '<span class="btn-icon">❌</span> Error';
+  }
+  btn.disabled = false;
 }
 
 

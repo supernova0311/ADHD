@@ -209,7 +209,7 @@ ADHD/
 ```
 
 ---
-
+.\venv\Scripts\activate; uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ## 📄 License
 
 MIT License — Built for The Big Code 2026 Hackathon
