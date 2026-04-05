@@ -23,7 +23,7 @@ PROFILE_CSS = {
     "adhd": {
         "description": "ADHD mode: Remove distractions, reduce animations, mute non-essential visuals",
         "global_css": """
-            /* Kill animations and transitions - critical for focus */
+            /* Kill ALL animations and transitions - critical for focus */
             *, *::before, *::after {
                 animation-duration: 0s !important;
                 animation-delay: 0s !important;
@@ -32,12 +32,19 @@ PROFILE_CSS = {
                 scroll-behavior: auto !important;
             }
 
-            /* Gently mute non-essential visual elements */
-            aside:not(main aside), [role="complementary"] {
-                opacity: 0.5 !important;
+            /* Mute non-essential visual elements */
+            aside, [role="complementary"], [role="banner"] {
+                opacity: 0.3 !important;
+                transition: opacity 0.2s !important;
             }
-            aside:not(main aside):hover, [role="complementary"]:hover {
+            aside:hover, [role="complementary"]:hover, [role="banner"]:hover {
                 opacity: 1 !important;
+            }
+
+            /* Reduce visual weight of images (they pull attention) */
+            img:not([role="img"]):not(.essential) {
+                opacity: 0.7 !important;
+                filter: grayscale(30%) !important;
             }
 
             /* Stop autoplay videos */
@@ -45,17 +52,24 @@ PROFILE_CSS = {
                 display: none !important;
             }
 
-            /* Subtle highlight on main content — only direct main/article */
-            body > main, body > article, [role="main"] {
-                border-left: 3px solid rgba(74, 144, 217, 0.5) !important;
+            /* Highlight main content area */
+            main, [role="main"], article, .content, #content {
+                border-left: 3px solid #4A90D9 !important;
                 padding-left: 12px !important;
+                background-color: rgba(74, 144, 217, 0.03) !important;
+            }
+
+            /* Remove floating/sticky elements that break focus */
+            [style*="position: fixed"]:not(nav):not(header),
+            [style*="position: sticky"]:not(nav):not(header) {
+                position: relative !important;
             }
         """,
         "font_css": """
-            /* Clean typography for focus — text elements only */
-            p, li, td, th, blockquote, figcaption, dd, dt {
+            /* Clean typography for focus */
+            body {
                 font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
-                line-height: 1.65 !important;
+                line-height: 1.6 !important;
             }
         """,
     },
@@ -63,19 +77,13 @@ PROFILE_CSS = {
     "dyslexia": {
         "description": "Dyslexia mode: Maximise spacing, readable fonts, left-aligned text",
         "global_css": """
-            /* Typography — scoped to text content, protects icon fonts */
-            p, li, td, th, blockquote, figcaption, dd, dt,
-            h1, h2, h3, h4, h5, h6 {
+            /* Typography - Research-backed spacing interventions */
+            body, p, li, td, th, span, div {
                 font-family: 'Verdana', 'Arial', 'Helvetica Neue', sans-serif !important;
                 letter-spacing: 0.12em !important;
                 word-spacing: 0.16em !important;
                 line-height: 1.8 !important;
-            }
-
-            /* Left-align text content only — don't break navs/buttons */
-            p, li, td, th, blockquote, dd, dt {
                 text-align: left !important;
-                hyphens: none !important;
             }
 
             /* Constrain line length to reduce tracking difficulty */
@@ -83,34 +91,44 @@ PROFILE_CSS = {
                 max-width: 65ch !important;
             }
 
+            /* Remove justified text - causes uneven word spacing */
+            * {
+                text-align: left !important;
+                hyphens: none !important;
+            }
+
             /* Increase paragraph spacing */
             p {
                 margin-bottom: 1.2em !important;
             }
 
-            /* No italics on text content — they tilt character shapes */
-            p em, p i, li em, li i,
-            td em, td i, blockquote em, blockquote i {
+            /* No italics - they tilt character shapes */
+            em, i, [style*="font-style: italic"] {
                 font-style: normal !important;
                 text-decoration: underline !important;
-                text-decoration-color: rgba(0, 0, 0, 0.3) !important;
+            }
+
+            /* Ensure sufficient contrast without harshness */
+            body {
+                background-color: #FAFAF5 !important;
+                color: #2D2D2D !important;
             }
 
             /* Make links clearly distinguishable */
             a {
+                color: #1A56DB !important;
                 text-decoration: underline !important;
                 text-underline-offset: 3px !important;
             }
 
             /* Reading ruler effect via focus glow on paragraphs */
             p:hover, li:hover {
-                background-color: rgba(255, 255, 200, 0.25) !important;
-                border-radius: 4px;
+                background-color: rgba(255, 255, 200, 0.3) !important;
             }
         """,
         "font_css": """
-            /* Font size minimum — text content only */
-            p, li, td, th, blockquote, dd, dt {
+            /* Font size minimum */
+            body {
                 font-size: max(16px, 1rem) !important;
             }
             h1 { font-size: 2em !important; }
@@ -122,29 +140,38 @@ PROFILE_CSS = {
     "autism": {
         "description": "Autism mode: Reduce sensory stimulation, enforce predictability, mute colors",
         "global_css": """
-            /* Gently desaturate — reduce sensory load without killing the page */
+            /* Desaturate the entire page - reduce sensory load */
             html {
-                filter: saturate(65%) !important;
+                filter: saturate(60%) !important;
             }
 
-            /* Remove animations and transitions */
+            /* Remove ALL animations, transitions, and motion */
             *, *::before, *::after {
                 animation: none !important;
                 transition: none !important;
                 scroll-behavior: auto !important;
             }
 
-            /* Remove decorative background images on containers only */
-            div, section, header, footer, aside, nav, main, article {
+            /* Remove background images (visual noise) */
+            *:not(img):not(video):not(canvas):not(svg) {
                 background-image: none !important;
             }
 
-            /* Remove text shadows on content */
-            p, li, td, th, h1, h2, h3, h4, h5, h6, span, a {
+            /* Consistent, calm color scheme */
+            body {
+                background-color: #F5F5F0 !important;
+                color: #333333 !important;
+            }
+
+            /* Remove text shadows and decorative borders */
+            * {
                 text-shadow: none !important;
             }
 
             /* Stop ALL media autoplay */
+            video, audio {
+                autoplay: false;
+            }
             video[autoplay], audio[autoplay] {
                 display: none !important;
             }
@@ -155,26 +182,27 @@ PROFILE_CSS = {
                 font-weight: 600 !important;
                 margin-top: 1.5em !important;
                 margin-bottom: 0.5em !important;
-            }
-
-            /* Subtle separator on h2+ only */
-            h2, h3 {
-                border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+                border-bottom: 1px solid #E0E0E0 !important;
                 padding-bottom: 0.3em !important;
             }
 
-            /* Consistent, underlined links */
+            /* Reduce visual complexity of links */
             a {
+                color: #2C5F9E !important;
                 text-decoration: underline !important;
             }
-
-            /* Remove transform hover effects on interactive elements only */
-            a:hover, button:hover, [role="button"]:hover {
-                transform: none !important;
+            a:visited {
+                color: #5B4B8A !important;
             }
 
-            /* Predictable form elements */
-            input, select, textarea {
+            /* Remove hover effects that cause unexpected changes */
+            *:hover {
+                transform: none !important;
+                box-shadow: none !important;
+            }
+
+            /* Make form elements predictable */
+            input, select, textarea, button {
                 border: 2px solid #999 !important;
                 border-radius: 4px !important;
                 padding: 8px !important;
@@ -182,7 +210,7 @@ PROFILE_CSS = {
             }
         """,
         "font_css": """
-            p, li, td, th, blockquote, figcaption, dd, dt {
+            body {
                 font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
                 line-height: 1.7 !important;
                 font-size: max(16px, 1rem) !important;
