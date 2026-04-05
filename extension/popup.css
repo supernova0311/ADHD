@@ -459,6 +459,54 @@ body {
   font-size: 16px;
 }
 
+/* --- Keyboard Shortcut Hint --- */
+.shortcut-hint {
+  text-align: center;
+  font-size: 10px;
+  color: #6B7280;
+  padding: 4px 0 2px;
+  letter-spacing: 0.02em;
+}
+
+.shortcut-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  color: #A78BFA;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* --- Processing Metrics Bar --- */
+.metrics-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+  animation: metricsSlideIn 0.3s ease;
+}
+
+@keyframes metricsSlideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.metrics-icon {
+  font-size: 14px;
+}
+
+.metrics-text {
+  font-size: 11px;
+  color: #9CA3AF;
+  line-height: 1.4;
+}
+
 /* --- Visual Enhancements --- */
 .visual-section h2 {
   font-size: 11px;

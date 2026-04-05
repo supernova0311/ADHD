@@ -283,6 +283,11 @@ async function handleActivate() {
             cls_after: response.cls_after,
           });
         }
+
+        // Show processing metrics
+        if (response.metrics) {
+          showProcessingMetrics(response.metrics);
+        }
       } else {
         setErrorState(response?.error || 'Unknown error');
       }
@@ -395,6 +400,8 @@ function setInactiveState() {
   btnActivate.disabled = false;
   btnReset.style.display = 'none';
   clsDisplay.style.display = 'none';
+  const metricsBar = document.getElementById('metrics-bar');
+  if (metricsBar) metricsBar.style.display = 'none';
 }
 
 function setErrorState(message) {
@@ -409,6 +416,30 @@ function showCLSScores(before, after) {
   clsDisplay.style.display = 'flex';
   clsBeforeValue.textContent = Math.round(before);
   clsAfterValue.textContent = Math.round(after);
+}
+
+
+function showProcessingMetrics(metrics) {
+  const metricsBar = document.getElementById('metrics-bar');
+  const metricsText = document.getElementById('metrics-text');
+  if (!metricsBar || !metricsText) return;
+
+  const chunks = metrics.chunks_processed || 0;
+  const latency = metrics.latency_ms || 0;
+  const methods = metrics.methods_used || {};
+
+  // Determine primary method
+  const llmCount = methods.llm || 0;
+  const ruleCount = methods.rule_based || 0;
+  let methodLabel = 'Rule-based';
+  if (llmCount > 0 && llmCount >= ruleCount) {
+    methodLabel = 'Gemini AI';
+  } else if (llmCount > 0) {
+    methodLabel = `Hybrid (${llmCount} AI + ${ruleCount} rule)`;
+  }
+
+  metricsText.innerHTML = `<strong>${chunks}</strong> chunks in <strong>${latency}ms</strong> · ${methodLabel}`;
+  metricsBar.style.display = 'flex';
 }
 
 
