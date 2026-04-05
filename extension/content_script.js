@@ -31,6 +31,16 @@
   let pausedMedia = []; // Track paused media for restore
   let modifiedStyles = new Map(); // Track style changes for restore
 
+  // Visual feature state
+  let bionicActive = false;
+  let spotlightActive = false;
+  let spotlightScrollHandler = null;
+  let minimapActive = false;
+  let minimapScrollHandler = null;
+  let readerActive = false;
+  let progressBarActive = false;
+  let progressScrollHandler = null;
+
   // --- Constants ---
   const TEXT_TAGS = ['P', 'LI', 'TD', 'TH', 'BLOCKQUOTE', 'FIGCAPTION', 'DD', 'DT'];
   const HEADING_TAGS = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
@@ -61,6 +71,23 @@
     if (message.action === 'HEATMAP_OFF') {
       removeHeatmap();
       sendResponse({ success: true });
+    }
+
+    if (message.action === 'VISUAL_FEATURE') {
+      handleVisualFeature(message.feature)
+        .then(result => sendResponse(result))
+        .catch(error => sendResponse({ active: false, error: error.message }));
+      return true;
+    }
+
+    if (message.action === 'GET_FEATURE_STATUS') {
+      sendResponse({
+        bionic: bionicActive,
+        spotlight: spotlightActive,
+        minimap: minimapActive,
+        reader: readerActive,
+        progress: progressBarActive,
+      });
     }
   });
 
@@ -208,10 +235,17 @@
       clsBadge = null;
     }
 
-    // 8. Remove progress overlay
+    // 8. Clean up visual features
+    if (bionicActive) disableBionicReading();
+    if (spotlightActive) disableSpotlightMode();
+    if (minimapActive) disableMinimap();
+    if (readerActive) disableReaderMode();
+    if (progressBarActive) disableProgressBar();
+
+    // 9. Remove progress overlay
     hideProgressOverlay();
 
-    // 9. Restore body overflow (in case cookie banner removal locked it)
+    // 10. Restore body overflow (in case cookie banner removal locked it)
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
   }
@@ -813,6 +847,417 @@
     // Remove legend
     const legend = document.getElementById('neuroui-heatmap-legend');
     if (legend) legend.remove();
+  }
+
+
+  // =============================================
+  // VISUAL FEATURE DISPATCHER
+  // =============================================
+
+  async function handleVisualFeature(feature) {
+    switch (feature) {
+      case 'bionic':
+        if (bionicActive) { disableBionicReading(); return { active: false }; }
+        enableBionicReading(); return { active: true };
+      case 'spotlight':
+        if (spotlightActive) { disableSpotlightMode(); return { active: false }; }
+        enableSpotlightMode(); return { active: true };
+      case 'minimap':
+        if (minimapActive) { disableMinimap(); return { active: false }; }
+        await enableMinimap(); return { active: minimapActive };
+      case 'reader':
+        if (readerActive) { disableReaderMode(); return { active: false }; }
+        enableReaderMode(); return { active: true };
+      case 'progress':
+        if (progressBarActive) { disableProgressBar(); return { active: false }; }
+        enableProgressBar(); return { active: true };
+      default:
+        return { active: false, error: 'Unknown feature' };
+    }
+  }
+
+
+  // =============================================
+  // 1. BIONIC READING
+  // =============================================
+
+  function enableBionicReading() {
+    if (bionicActive) return;
+    bionicActive = true;
+
+    const style = document.createElement('style');
+    style.id = 'neuroui-bionic-css';
+    style.textContent = `
+      .neuroui-bionic {
+        font-weight: 700 !important;
+        color: inherit;
+      }
+    `;
+    document.head.appendChild(style);
+
+    const tags = [...TEXT_TAGS, ...HEADING_TAGS];
+    tags.forEach(tag => {
+      document.querySelectorAll(tag).forEach(el => {
+        if (!isVisible(el) || el.closest('#neuroui-reader') || el.closest('#neuroui-cls-badge')) return;
+        bionicifyElement(el);
+      });
+    });
+  }
+
+  function bionicifyElement(el) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    textNodes.forEach(node => {
+      const text = node.textContent;
+      if (text.trim().length < 3) return;
+
+      const frag = document.createDocumentFragment();
+      const parts = text.split(/(\s+)/);
+
+      parts.forEach(part => {
+        if (/^\s*$/.test(part) || part.length < 2) {
+          frag.appendChild(document.createTextNode(part));
+          return;
+        }
+        const boldLen = Math.ceil(part.length * 0.5);
+        const b = document.createElement('b');
+        b.className = 'neuroui-bionic';
+        b.textContent = part.substring(0, boldLen);
+        frag.appendChild(b);
+        frag.appendChild(document.createTextNode(part.substring(boldLen)));
+      });
+
+      const wrapper = document.createElement('span');
+      wrapper.className = 'neuroui-bionic-wrapper';
+      wrapper.dataset.originalText = text;
+      wrapper.appendChild(frag);
+      node.parentNode.replaceChild(wrapper, node);
+    });
+  }
+
+  function disableBionicReading() {
+    bionicActive = false;
+    document.querySelectorAll('.neuroui-bionic-wrapper').forEach(wrapper => {
+      const textNode = document.createTextNode(wrapper.dataset.originalText);
+      wrapper.parentNode.replaceChild(textNode, wrapper);
+    });
+    const style = document.getElementById('neuroui-bionic-css');
+    if (style) style.remove();
+  }
+
+
+  // =============================================
+  // 2. SPOTLIGHT FOCUS MODE
+  // =============================================
+
+  function enableSpotlightMode() {
+    if (spotlightActive) return;
+    spotlightActive = true;
+
+    const style = document.createElement('style');
+    style.id = 'neuroui-spotlight-css';
+    style.textContent = `
+      .neuroui-spotlight-focus {
+        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.82) !important;
+        position: relative !important;
+        z-index: 99998 !important;
+        border-radius: 8px !important;
+        padding: 10px 14px !important;
+        transition: box-shadow 0.3s ease !important;
+      }
+      @media (prefers-color-scheme: dark) {
+        .neuroui-spotlight-focus {
+          background-color: rgba(30, 30, 40, 0.98) !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    spotlightScrollHandler = () => requestAnimationFrame(updateSpotlight);
+    window.addEventListener('scroll', spotlightScrollHandler, { passive: true });
+    updateSpotlight();
+  }
+
+  function updateSpotlight() {
+    if (!spotlightActive) return;
+    const selector = [...TEXT_TAGS, ...HEADING_TAGS].join(', ');
+    const paragraphs = document.querySelectorAll(selector);
+    const center = window.innerHeight / 2;
+    let closest = null;
+    let closestDist = Infinity;
+
+    const prev = document.querySelector('.neuroui-spotlight-focus');
+    if (prev) prev.classList.remove('neuroui-spotlight-focus');
+
+    paragraphs.forEach(p => {
+      if (p.closest('#neuroui-reader') || p.closest('#neuroui-cls-badge')) return;
+      const rect = p.getBoundingClientRect();
+      if (rect.height === 0 || rect.bottom < 0 || rect.top > window.innerHeight) return;
+      const dist = Math.abs(rect.top + rect.height / 2 - center);
+      if (dist < closestDist) { closestDist = dist; closest = p; }
+    });
+
+    if (closest) closest.classList.add('neuroui-spotlight-focus');
+  }
+
+  function disableSpotlightMode() {
+    spotlightActive = false;
+    if (spotlightScrollHandler) {
+      window.removeEventListener('scroll', spotlightScrollHandler);
+      spotlightScrollHandler = null;
+    }
+    const prev = document.querySelector('.neuroui-spotlight-focus');
+    if (prev) prev.classList.remove('neuroui-spotlight-focus');
+    const style = document.getElementById('neuroui-spotlight-css');
+    if (style) style.remove();
+  }
+
+
+  // =============================================
+  // 3. CLS SCROLL MINIMAP
+  // =============================================
+
+  async function enableMinimap() {
+    if (minimapActive) return;
+    minimapActive = true;
+
+    const allTags = [...TEXT_TAGS, ...HEADING_TAGS];
+    const elements = [];
+    allTags.forEach(tag => {
+      document.querySelectorAll(tag).forEach(el => {
+        const text = el.textContent?.trim();
+        if (text && text.length >= 20 && isVisible(el)) {
+          elements.push({ element: el, text });
+        }
+      });
+    });
+
+    if (elements.length === 0) { minimapActive = false; return; }
+
+    // Call heatmap API
+    let scores;
+    try {
+      const resp = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'API_CALL', endpoint: '/api/heatmap', method: 'POST',
+          body: { chunks: elements.map(e => e.text) },
+        }, r => chrome.runtime.lastError ? reject(new Error(chrome.runtime.lastError.message)) : resolve(r));
+      });
+      if (resp.error) throw new Error(resp.error);
+      scores = resp.scores;
+    } catch (err) { minimapActive = false; return; }
+
+    const colors = { low: '#22c55e', moderate: '#facc15', high: '#f97316', critical: '#ef4444' };
+    const docHeight = document.documentElement.scrollHeight;
+
+    const minimap = document.createElement('div');
+    minimap.id = 'neuroui-minimap';
+    minimap.style.cssText = `
+      position:fixed; top:0; right:0; width:14px; height:100vh;
+      z-index:999997; background:rgba(15,15,26,0.92);
+      border-left:1px solid rgba(99,102,241,0.2); cursor:pointer;
+    `;
+
+    elements.forEach((item, i) => {
+      if (!scores[i]) return;
+      const rect = item.element.getBoundingClientRect();
+      const absTop = rect.top + window.scrollY;
+      const band = document.createElement('div');
+      band.style.cssText = `
+        position:absolute; top:${(absTop/docHeight)*100}%;
+        left:2px; right:2px; height:${Math.max(0.4,(rect.height/docHeight)*100)}%;
+        min-height:2px; background:${colors[scores[i].level]||colors.moderate};
+        border-radius:1px; opacity:0.8;
+      `;
+      band.title = `CLS: ${Math.round(scores[i].cls)} (${scores[i].level})`;
+      minimap.appendChild(band);
+    });
+
+    // Viewport indicator
+    const vp = document.createElement('div');
+    vp.id = 'neuroui-minimap-vp';
+    vp.style.cssText = `
+      position:absolute; left:0; right:0;
+      border:1.5px solid rgba(99,102,241,0.8); border-radius:2px;
+      background:rgba(99,102,241,0.08); pointer-events:none;
+      transition:top 0.1s linear,height 0.1s linear;
+    `;
+    minimap.appendChild(vp);
+    document.body.appendChild(minimap);
+
+    minimap.addEventListener('click', e => {
+      const r = minimap.getBoundingClientRect();
+      const pct = (e.clientY - r.top) / r.height;
+      window.scrollTo({ top: pct * (docHeight - window.innerHeight), behavior: 'smooth' });
+    });
+
+    minimapScrollHandler = () => {
+      const v = document.getElementById('neuroui-minimap-vp');
+      if (!v) return;
+      v.style.top = (window.scrollY / docHeight * 100) + '%';
+      v.style.height = (window.innerHeight / docHeight * 100) + '%';
+    };
+    window.addEventListener('scroll', minimapScrollHandler, { passive: true });
+    minimapScrollHandler();
+  }
+
+  function disableMinimap() {
+    minimapActive = false;
+    const m = document.getElementById('neuroui-minimap');
+    if (m) m.remove();
+    if (minimapScrollHandler) {
+      window.removeEventListener('scroll', minimapScrollHandler);
+      minimapScrollHandler = null;
+    }
+  }
+
+
+  // =============================================
+  // 4. READER MODE (ZEN LAYOUT)
+  // =============================================
+
+  function enableReaderMode() {
+    if (readerActive) return;
+    readerActive = true;
+
+    const allTags = [...TEXT_TAGS, ...HEADING_TAGS];
+    const content = [];
+    allTags.forEach(tag => {
+      document.querySelectorAll(tag).forEach(el => {
+        const text = el.textContent?.trim();
+        if (text && text.length >= 10 && isVisible(el)) {
+          content.push({ tag: el.tagName.toLowerCase(), text });
+        }
+      });
+    });
+
+    const html = content.map(el => {
+      const t = el.text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<${el.tag}>${t}</${el.tag}>`;
+    }).join('\n');
+
+    const reader = document.createElement('div');
+    reader.id = 'neuroui-reader';
+    reader.innerHTML = `
+      <style>
+        #neuroui-reader {
+          position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;
+          overflow-y:auto;background:var(--nr-bg,#0f0f1a);color:var(--nr-text,#d4d4d8);
+          animation:nrFadeIn .4s ease;
+        }
+        @keyframes nrFadeIn { from{opacity:0} to{opacity:1} }
+        .nr-toolbar {
+          position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px;
+          padding:10px 24px;background:var(--nr-bar,rgba(15,15,26,.95));
+          backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.06);
+          font-family:'Inter','Segoe UI',system-ui,sans-serif;
+        }
+        .nr-title {
+          font-size:14px;font-weight:700;margin-right:auto;
+          background:linear-gradient(135deg,#6366f1,#a78bfa);
+          -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+        }
+        .nr-toolbar button {
+          background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+          color:#e4e4e7;border-radius:6px;padding:6px 12px;font-size:13px;
+          cursor:pointer;font-family:inherit;transition:all .2s;
+        }
+        .nr-toolbar button:hover {
+          background:rgba(99,102,241,.15);border-color:rgba(99,102,241,.3);
+        }
+        .nr-body {
+          max-width:680px;margin:0 auto;padding:48px 24px 120px;
+          font-size:var(--nr-fs,18px);line-height:1.85;
+          font-family:'Georgia','Charter',serif;
+        }
+        .nr-body h1{font-size:2em;font-weight:800;margin:1.2em 0 .5em;font-family:'Inter','Segoe UI',system-ui,sans-serif;color:var(--nr-h,#f4f4f5);line-height:1.3}
+        .nr-body h2{font-size:1.5em;font-weight:700;margin:1em 0 .4em;font-family:'Inter','Segoe UI',system-ui,sans-serif;color:var(--nr-h,#f4f4f5);border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:.3em}
+        .nr-body h3,.nr-body h4,.nr-body h5,.nr-body h6{font-size:1.2em;font-weight:600;margin:.8em 0 .3em;font-family:'Inter','Segoe UI',system-ui,sans-serif;color:var(--nr-h,#e4e4e7)}
+        .nr-body p{margin-bottom:1.3em}
+        .nr-body li{margin-bottom:.6em;margin-left:1.5em}
+        .nr-body blockquote{border-left:3px solid #6366f1;padding-left:16px;margin:1em 0;color:#9ca3af;font-style:italic}
+        #neuroui-reader.theme-sepia{--nr-bg:#f4ecd8;--nr-text:#433422;--nr-h:#2c2010;--nr-bar:rgba(244,236,216,.95)}
+        #neuroui-reader.theme-light{--nr-bg:#ffffff;--nr-text:#1f2937;--nr-h:#111827;--nr-bar:rgba(255,255,255,.95)}
+      </style>
+      <div class="nr-toolbar">
+        <span class="nr-title">📄 Reader Mode — NeuroUI</span>
+        <button id="nr-font-down" title="Decrease font">A−</button>
+        <button id="nr-font-up" title="Increase font">A+</button>
+        <button id="nr-theme" title="Toggle theme">🎨</button>
+        <button id="nr-close" title="Close">✕ Close</button>
+      </div>
+      <div class="nr-body">${html}</div>`;
+
+    document.body.appendChild(reader);
+    document.body.style.overflow = 'hidden';
+
+    let fontSize = 18;
+    const themes = ['', 'theme-sepia', 'theme-light'];
+    let themeIdx = 0;
+
+    document.getElementById('nr-font-down').onclick = () => {
+      fontSize = Math.max(14, fontSize - 2);
+      reader.style.setProperty('--nr-fs', fontSize + 'px');
+    };
+    document.getElementById('nr-font-up').onclick = () => {
+      fontSize = Math.min(28, fontSize + 2);
+      reader.style.setProperty('--nr-fs', fontSize + 'px');
+    };
+    document.getElementById('nr-theme').onclick = () => {
+      reader.classList.remove(...themes.filter(t => t));
+      themeIdx = (themeIdx + 1) % themes.length;
+      if (themes[themeIdx]) reader.classList.add(themes[themeIdx]);
+    };
+    document.getElementById('nr-close').onclick = () => {
+      disableReaderMode();
+      chrome.runtime.sendMessage({ action: 'READER_CLOSED' }).catch(() => {});
+    };
+  }
+
+  function disableReaderMode() {
+    readerActive = false;
+    const r = document.getElementById('neuroui-reader');
+    if (r) r.remove();
+    document.body.style.overflow = '';
+  }
+
+
+  // =============================================
+  // 5. READING PROGRESS BAR
+  // =============================================
+
+  function enableProgressBar() {
+    if (progressBarActive) return;
+    progressBarActive = true;
+
+    const bar = document.createElement('div');
+    bar.id = 'neuroui-progress-reading';
+    bar.style.cssText = `
+      position:fixed;top:0;left:0;height:3px;
+      background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa);
+      z-index:999999;width:0%;transition:width .15s linear;
+      box-shadow:0 0 8px rgba(99,102,241,.4);border-radius:0 2px 2px 0;
+    `;
+    document.body.appendChild(bar);
+
+    progressScrollHandler = () => {
+      const pct = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (pct > 0 ? Math.min(100, (window.scrollY / pct) * 100) : 0) + '%';
+    };
+    window.addEventListener('scroll', progressScrollHandler, { passive: true });
+    progressScrollHandler();
+  }
+
+  function disableProgressBar() {
+    progressBarActive = false;
+    const bar = document.getElementById('neuroui-progress-reading');
+    if (bar) bar.remove();
+    if (progressScrollHandler) {
+      window.removeEventListener('scroll', progressScrollHandler);
+      progressScrollHandler = null;
+    }
   }
 
 

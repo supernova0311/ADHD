@@ -90,6 +90,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Setup event listeners
   setupEventListeners();
+
+  // Query visual feature status from content script
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab) {
+      chrome.tabs.sendMessage(tab.id, { action: 'GET_FEATURE_STATUS' }, (status) => {
+        if (chrome.runtime.lastError || !status) return;
+        const features = ['bionic', 'spotlight', 'minimap', 'reader', 'progress'];
+        features.forEach(f => {
+          const btn = document.getElementById(`btn-${f}`);
+          if (btn && status[f]) btn.classList.add('active');
+        });
+      });
+    }
+  } catch (e) { /* ignore */ }
 });
 
 
@@ -168,6 +183,15 @@ function setupEventListeners() {
   if (colorSelect) {
     colorSelect.addEventListener('change', () => persistSettings());
   }
+
+  // Visual feature toggles
+  const features = ['bionic', 'spotlight', 'minimap', 'reader', 'progress'];
+  features.forEach(feature => {
+    const btn = document.getElementById(`btn-${feature}`);
+    if (btn) {
+      btn.addEventListener('click', () => toggleVisualFeature(feature, btn));
+    }
+  });
 }
 
 
@@ -384,3 +408,33 @@ function showCLSScores(before, after) {
   clsBeforeValue.textContent = Math.round(before);
   clsAfterValue.textContent = Math.round(after);
 }
+
+
+async function toggleVisualFeature(feature, btn) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      action: 'VISUAL_FEATURE',
+      feature: feature,
+    });
+
+    if (response && response.active) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  } catch (err) {
+    console.error('Visual feature error:', err);
+  }
+}
+
+
+// Listen for READER_CLOSED from content script
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.action === 'READER_CLOSED') {
+    const btn = document.getElementById('btn-reader');
+    if (btn) btn.classList.remove('active');
+  }
+});

@@ -459,6 +459,60 @@ body {
   font-size: 16px;
 }
 
+/* --- Visual Enhancements --- */
+.visual-section h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6B7280;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.feature-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #9CA3AF;
+  font-family: inherit;
+}
+
+.feature-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #E4E4E7;
+  transform: translateY(-1px);
+}
+
+.feature-btn.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #6366F1;
+  color: #E4E4E7;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+}
+
+.feature-icon {
+  font-size: 18px;
+}
+
+.feature-label {
+  font-size: 10px;
+  font-weight: 600;
+}
+
 /* --- Footer --- */
 .popup-footer {
   text-align: center;
