@@ -3,6 +3,10 @@
  * ======================================
  * Handles profile selection, custom settings, and communication
  * with the content script and background service worker.
+ *
+ * KEY FIX: Custom settings are now ALWAYS sent to the backend
+ * regardless of profile selection, so quiz-determined profiles
+ * can still be fine-tuned.
  */
 
 // --- State ---
@@ -19,10 +23,14 @@ const btnActivate = document.getElementById('btn-activate');
 const btnReset = document.getElementById('btn-reset');
 const customSettings = document.getElementById('custom-settings');
 const profileButtons = document.querySelectorAll('.profile-btn');
+const finetuneToggle = document.getElementById('finetune-toggle');
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Load saved state
-  const saved = await chrome.storage.local.get(['profile', 'isActive', 'cls_before', 'cls_after', 'adBlockEnabled', 'totalAdsBlocked']);
+  const saved = await chrome.storage.local.get([
+    'profile', 'isActive', 'cls_before', 'cls_after',
+    'adBlockEnabled', 'totalAdsBlocked', 'customSettings',
+  ]);
 
   if (saved.profile) {
     currentProfile = saved.profile;
@@ -36,6 +44,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (saved.cls_before && saved.cls_after) {
     showCLSScores(saved.cls_before, saved.cls_after);
+  }
+
+  // Restore saved custom settings to the UI controls
+  if (saved.customSettings) {
+    restoreSettings(saved.customSettings);
   }
 
   // Ad blocker state
@@ -110,20 +123,50 @@ function setupEventListeners() {
     });
   }
 
-  // Custom settings sliders
+  // Fine-tune toggle (expand/collapse settings for ANY profile)
+  if (finetuneToggle) {
+    finetuneToggle.addEventListener('click', () => {
+      const isOpen = customSettings.style.display !== 'none';
+      customSettings.style.display = isOpen ? 'none' : 'flex';
+      finetuneToggle.classList.toggle('open', !isOpen);
+    });
+  }
+
+  // Custom settings sliders — save on every change
   const simplificationSlider = document.getElementById('simplification-level');
   const spacingSlider = document.getElementById('spacing-multiplier');
+  const fontSizeSlider = document.getElementById('font-size');
 
   if (simplificationSlider) {
     simplificationSlider.addEventListener('input', (e) => {
       document.getElementById('simplification-value').textContent = e.target.value;
+      persistSettings();
     });
   }
 
   if (spacingSlider) {
     spacingSlider.addEventListener('input', (e) => {
       document.getElementById('spacing-value').textContent = `${e.target.value}×`;
+      persistSettings();
     });
+  }
+
+  if (fontSizeSlider) {
+    fontSizeSlider.addEventListener('input', (e) => {
+      document.getElementById('font-size-value').textContent = `${e.target.value}px`;
+      persistSettings();
+    });
+  }
+
+  // Selects
+  const distractionSelect = document.getElementById('distraction-level');
+  const colorSelect = document.getElementById('color-mode');
+
+  if (distractionSelect) {
+    distractionSelect.addEventListener('change', () => persistSettings());
+  }
+  if (colorSelect) {
+    colorSelect.addEventListener('change', () => persistSettings());
   }
 }
 
@@ -162,9 +205,6 @@ function selectProfile(profile) {
     btn.classList.toggle('selected', btn.dataset.profile === profile);
   });
 
-  // Show/hide custom settings
-  customSettings.style.display = profile === 'custom' ? 'flex' : 'none';
-
   // Save selection
   chrome.storage.local.set({ profile });
 
@@ -186,7 +226,7 @@ async function handleActivate() {
   setProcessingState();
 
   try {
-    // Get custom settings if applicable
+    // ALWAYS collect custom settings, regardless of profile
     const settings = getCustomSettings();
 
     // Save state
@@ -246,15 +286,60 @@ async function handleReset() {
 }
 
 
+/**
+ * ALWAYS collect custom settings regardless of profile.
+ * This is the key fix — previously returned {} for non-custom profiles.
+ */
 function getCustomSettings() {
-  if (currentProfile !== 'custom') return {};
-
   return {
     simplification_level: parseInt(document.getElementById('simplification-level').value),
     distraction_level: document.getElementById('distraction-level').value,
     spacing_multiplier: parseFloat(document.getElementById('spacing-multiplier').value),
     color_mode: document.getElementById('color-mode').value,
+    font_size: parseInt(document.getElementById('font-size').value),
   };
+}
+
+
+/**
+ * Persist current settings to chrome.storage so they survive popup close.
+ */
+async function persistSettings() {
+  const settings = getCustomSettings();
+  await chrome.storage.local.set({ customSettings: settings });
+}
+
+
+/**
+ * Restore saved settings into the UI controls.
+ */
+function restoreSettings(settings) {
+  if (!settings) return;
+
+  const simplificationSlider = document.getElementById('simplification-level');
+  const spacingSlider = document.getElementById('spacing-multiplier');
+  const fontSizeSlider = document.getElementById('font-size');
+  const distractionSelect = document.getElementById('distraction-level');
+  const colorSelect = document.getElementById('color-mode');
+
+  if (settings.simplification_level && simplificationSlider) {
+    simplificationSlider.value = settings.simplification_level;
+    document.getElementById('simplification-value').textContent = settings.simplification_level;
+  }
+  if (settings.distraction_level && distractionSelect) {
+    distractionSelect.value = settings.distraction_level;
+  }
+  if (settings.spacing_multiplier && spacingSlider) {
+    spacingSlider.value = settings.spacing_multiplier;
+    document.getElementById('spacing-value').textContent = `${settings.spacing_multiplier}×`;
+  }
+  if (settings.font_size && fontSizeSlider) {
+    fontSizeSlider.value = settings.font_size;
+    document.getElementById('font-size-value').textContent = `${settings.font_size}px`;
+  }
+  if (settings.color_mode && colorSelect) {
+    colorSelect.value = settings.color_mode;
+  }
 }
 
 

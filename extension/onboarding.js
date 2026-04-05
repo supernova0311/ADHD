@@ -107,7 +107,44 @@ function showResult() {
 
   // Apply profile button
   document.getElementById('result-action').addEventListener('click', async () => {
-    await chrome.storage.local.set({ profile: profile, quizCompleted: true });
+    // Store profile-specific default custom settings based on quiz result
+    const defaultSettings = {
+      adhd: {
+        simplification_level: 2,
+        distraction_level: 'high',
+        spacing_multiplier: 1.2,
+        color_mode: 'original',
+        font_size: 16,
+      },
+      dyslexia: {
+        simplification_level: 2,
+        distraction_level: 'medium',
+        spacing_multiplier: 1.8,
+        color_mode: 'warm',
+        font_size: 18,
+      },
+      autism: {
+        simplification_level: 1,
+        distraction_level: 'medium',
+        spacing_multiplier: 1.4,
+        color_mode: 'muted',
+        font_size: 16,
+      },
+    };
+
+    const settings = defaultSettings[profile] || {
+      simplification_level: 2,
+      distraction_level: 'medium',
+      spacing_multiplier: 1.2,
+      color_mode: 'original',
+      font_size: 16,
+    };
+
+    await chrome.storage.local.set({
+      profile: profile,
+      quizCompleted: true,
+      customSettings: settings,
+    });
     window.close();
   });
 }

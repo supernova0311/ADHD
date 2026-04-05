@@ -38,6 +38,55 @@ async def process_page(
 ) -> dict:
     """
     Main orchestration endpoint. Processes a full page through the MAS pipeline.
+    Has a 15-second hard timeout to ensure interactive responsiveness.
+    """
+    try:
+        return await asyncio.wait_for(
+            _process_page_inner(chunks, profile, dom_snapshot, custom_settings, api_key),
+            timeout=15.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Pipeline timed out after 15s — returning rule-based fallback")
+        from core.cognitive_metrics import compute_cls as _compute_cls
+        from agents.text_simplifier import _rule_based_simplify
+        from agents.visual_adapter import get_visual_adaptations as _get_vis
+        from agents.focus_agent import generate_focus_actions as _gen_focus
+
+        # Quick fallback: rule-based only
+        simplified = [_rule_based_simplify(c) if len(c.strip()) >= 20 else c for c in chunks]
+        vis = _get_vis(profile, custom_settings)
+        cls_before = _compute_cls(" ".join(chunks))
+        cls_after = _compute_cls(" ".join(simplified))
+        return {
+            "simplified_chunks": simplified,
+            "simplification_details": [],
+            "visual_css": vis["css_rules"],
+            "visual_description": vis["description"],
+            "focus_actions": {"css_rules": "", "js_commands": [], "hide_selectors": []},
+            "cls_before": cls_before,
+            "cls_after": cls_after,
+            "cls_improvement": round(cls_before["cls"] - cls_after["cls"], 2),
+            "metrics": {
+                "chunks_processed": len(chunks),
+                "methods_used": {"rule_based": len(chunks)},
+                "avg_readability_improvement": 0,
+                "distractors_detected": 0,
+                "elements_removed": 0,
+                "profile": profile,
+                "timeout": True,
+            },
+        }
+
+
+async def _process_page_inner(
+    chunks: list[str],
+    profile: str,
+    dom_snapshot: Optional[dict] = None,
+    custom_settings: Optional[dict] = None,
+    api_key: Optional[str] = None,
+) -> dict:
+    """
+    Main orchestration endpoint. Processes a full page through the MAS pipeline.
 
     Args:
         chunks: List of text chunks extracted from the page

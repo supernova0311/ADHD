@@ -13,6 +13,7 @@ transformations for ADHD, Dyslexia, and Autism modes.
 import os
 import re
 import logging
+import asyncio
 import textstat
 from typing import Optional
 
@@ -25,6 +26,10 @@ try:
     _gemini_available = True
 except ImportError:
     logger.warning("google-generativeai not installed. Using mock simplifier.")
+
+# One-time Gemini configuration (avoid re-configuring on every call)
+_gemini_configured = False
+_gemini_model = None
 
 
 # --- Profile-Specific System Prompts ---
@@ -277,16 +282,30 @@ async def simplify_text(
     text_is_simple = readability_before >= 70  # Flesch >= 70 = easy
     text_is_short = len(text.split()) < 25
 
+    # Fast-path: if rule-based already achieves big improvement, skip LLM
+    preprocessed_readability = textstat.flesch_reading_ease(preprocessed)
+    rule_improvement = preprocessed_readability - readability_before
+    if rule_improvement > 15:
+        logger.info(f"Rule-based achieved +{rule_improvement:.0f} FRE improvement, skipping LLM")
+        text_is_simple = True  # Force skip
+
     if api_key and _gemini_available and not text_is_simple and not text_is_short:
         # Check circuit breaker
         if not _is_circuit_open():
             try:
-                simplified = await _llm_simplify(preprocessed, profile, api_key)
+                simplified = await asyncio.wait_for(
+                    _llm_simplify(preprocessed, profile, api_key),
+                    timeout=10.0,  # Hard 10s ceiling for LLM call
+                )
                 if simplified and _validate_simplification(text, simplified):
                     method = "llm"
                     _record_llm_success()
                 else:
                     simplified = None  # Fall back to rule-based
+            except asyncio.TimeoutError:
+                logger.warning("LLM simplification timed out after 10s, using rule-based")
+                _record_llm_failure()
+                simplified = None
             except Exception as e:
                 logger.error(f"LLM simplification failed: {e}")
                 _record_llm_failure()
@@ -348,6 +367,22 @@ def _reset_circuit():
     _llm_circuit_open_until = 0.0
 
 
+def _ensure_gemini_configured(api_key: str):
+    """Configure Gemini SDK once and cache the model instance."""
+    global _gemini_configured, _gemini_model
+    if not _gemini_configured or _gemini_model is None:
+        genai.configure(api_key=api_key)
+        _gemini_model = genai.GenerativeModel(
+            "gemini-2.0-flash",
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=1024,
+            ),
+        )
+        _gemini_configured = True
+        logger.info("Gemini SDK configured (one-time init)")
+
+
 async def _llm_simplify(text: str, profile: str, api_key: str) -> Optional[str]:
     """Call Gemini for text simplification with retry + backoff."""
 
@@ -364,15 +399,8 @@ Provide ONLY the simplified text. Do not include any preamble, explanation, or m
 
     # Try the modern SDK API first (v0.3+)
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            "gemini-2.0-flash",
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=1024,  # Reduced for speed
-            ),
-        )
-        response = await model.generate_content_async(prompt)
+        _ensure_gemini_configured(api_key)
+        response = await _gemini_model.generate_content_async(prompt)
         if response and response.text:
             return response.text.strip()
     except AttributeError:
@@ -380,64 +408,73 @@ Provide ONLY the simplified text. Do not include any preamble, explanation, or m
         pass
     except Exception as e:
         error_str = str(e)
-        # If rate limited, retry once after a short delay
         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-            logger.warning("Rate limited by Gemini — retrying in 2s...")
-            import asyncio
-            await asyncio.sleep(2)
+            logger.warning("Rate limited by Gemini — retrying in 1s...")
+            await asyncio.sleep(1)
             try:
-                response = await model.generate_content_async(prompt)
+                response = await _gemini_model.generate_content_async(prompt)
                 if response and response.text:
                     return response.text.strip()
             except Exception as retry_err:
                 logger.error(f"Gemini retry also failed: {retry_err}")
-                raise  # Let circuit breaker handle it
+                raise
         else:
             logger.error(f"Gemini SDK error: {e}")
 
-    # Fallback: Direct REST API call with retry
+    # Fallback: Direct REST API call (run in thread to avoid blocking event loop)
+    return await _rest_fallback(prompt, api_key)
+
+
+def _rest_call_sync(prompt: str, api_key: str) -> Optional[str]:
+    """Synchronous REST call — meant to run in a thread via asyncio.to_thread."""
+    import urllib.request
+    import json
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-2.0-flash:generateContent"
+    )
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.3,
+            "maxOutputTokens": 1024,
+        },
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        },
+    )
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        candidates = data.get("candidates", [])
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if parts:
+                return parts[0].get("text", "").strip()
+    return None
+
+
+async def _rest_fallback(prompt: str, api_key: str) -> Optional[str]:
+    """Non-blocking REST fallback using asyncio.to_thread."""
     for attempt in range(2):
         try:
-            import urllib.request
-            import json
-
-            url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"gemini-2.0-flash:generateContent"
-            )
-            payload = json.dumps({
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.3,
-                    "maxOutputTokens": 1024,
-                },
-            }).encode("utf-8")
-
-            req = urllib.request.Request(
-                url,
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "x-goog-api-key": api_key,
-                },
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "").strip()
+            result = await asyncio.to_thread(_rest_call_sync, prompt, api_key)
+            if result:
+                return result
         except Exception as e:
             error_str = str(e)
             if ("429" in error_str or "RESOURCE_EXHAUSTED" in error_str) and attempt == 0:
-                logger.warning("REST rate limited — retrying in 3s...")
-                import asyncio
-                await asyncio.sleep(3)
+                logger.warning("REST rate limited — retrying in 1s...")
+                await asyncio.sleep(1)
                 continue
             logger.error(f"Gemini REST fallback failed: {e}")
             break
-
     return None
 
 

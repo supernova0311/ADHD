@@ -81,7 +81,12 @@
       </div>
     </section>
 
-    <!-- Custom Settings (hidden by default) -->
+    <!-- Fine-tune Settings (collapsible, available for ALL profiles) -->
+    <div class="finetune-toggle" id="finetune-toggle">
+      <span class="finetune-icon">⚙️</span>
+      <span>Fine-tune settings</span>
+      <span class="finetune-arrow" id="finetune-arrow">▸</span>
+    </div>
     <section class="custom-settings" id="custom-settings" style="display: none;">
       <div class="setting-row">
         <label for="simplification-level">Text Simplification</label>
@@ -100,6 +105,11 @@
         <label for="spacing-multiplier">Spacing</label>
         <input type="range" id="spacing-multiplier" min="0.5" max="3.0" step="0.1" value="1.2">
         <span class="setting-value" id="spacing-value">1.2×</span>
+      </div>
+      <div class="setting-row">
+        <label for="font-size">Font Size</label>
+        <input type="range" id="font-size" min="12" max="28" step="1" value="16">
+        <span class="setting-value" id="font-size-value">16px</span>
       </div>
       <div class="setting-row">
         <label for="color-mode">Color Mode</label>
