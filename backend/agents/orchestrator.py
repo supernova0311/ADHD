@@ -22,7 +22,7 @@ from typing import Optional, List
 
 from core.cognitive_metrics import compute_cls
 from core.dom_analyzer import analyze_dom
-from agents.text_simplifier import simplify_text
+from agents.text_simplifier import simplify_text, simplify_batch
 from agents.visual_adapter import get_visual_adaptations
 from agents.focus_agent import generate_focus_actions
 
@@ -124,21 +124,15 @@ async def _process_page_inner(
     full_text = " ".join(chunks)
     cls_before = compute_cls(full_text, dom_metadata)
 
-    # --- Step 3: Dispatch to agents in parallel ---
-    # Text simplification tasks (one per chunk)
-    simplification_tasks = [
-        simplify_text(chunk, profile, api_key)
-        for chunk in chunks
-    ]
-
+    # --- Step 3: Dispatch to agents ---
     # Visual adaptation (synchronous, no IO)
     visual_result = get_visual_adaptations(profile, custom_settings)
 
     # Focus agent (synchronous, deterministic)
     focus_result = generate_focus_actions(dom_analysis, profile, custom_settings)
 
-    # Await all text simplifications concurrently
-    simplification_results = await asyncio.gather(*simplification_tasks)
+    # Batch text simplification — 1 LLM call for ALL chunks instead of N
+    simplification_results = await simplify_batch(chunks, profile, api_key)
 
     # --- Step 4: Aggregate results ---
     simplified_chunks = [r["simplified_text"] for r in simplification_results]

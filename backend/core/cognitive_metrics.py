@@ -20,23 +20,30 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Try to load spaCy (optional — graceful fallback if not installed)
-nlp = None
-try:
-    import spacy
-    try:
-        nlp = spacy.load("en_core_web_sm")
-        logger.info("spaCy model loaded successfully.")
-    except OSError:
-        logger.warning(
-            "spaCy model 'en_core_web_sm' not found. "
-            "Run: python -m spacy download en_core_web_sm"
-        )
-except ImportError:
-    logger.warning(
-        "spaCy not installed. Using heuristic syntactic load estimation. "
-        "Install with: pip install spacy"
-    )
+# Lazy-load spaCy (avoids blocking server startup for 2-5s)
+_nlp = None
+_nlp_loaded = False
+
+def _get_nlp():
+    global _nlp, _nlp_loaded
+    if not _nlp_loaded:
+        _nlp_loaded = True
+        try:
+            import spacy
+            _nlp = spacy.load("en_core_web_sm")
+            logger.info("spaCy model loaded successfully.")
+        except OSError:
+            logger.warning(
+                "spaCy model 'en_core_web_sm' not found. "
+                "Run: python -m spacy download en_core_web_sm"
+            )
+            _nlp = None
+        except ImportError:
+            logger.warning(
+                "spaCy not installed. Using heuristic syntactic load estimation."
+            )
+            _nlp = None
+    return _nlp
 
 # --- CLS Weights ---
 W_TEXT_COMPLEXITY = 0.40
@@ -97,7 +104,8 @@ def compute_syntactic_load(text: str) -> float:
     if not text or len(text.strip()) < 10:
         return 0.0
 
-    # Use spaCy if available
+    # Use spaCy if available (lazy-loaded on first call)
+    nlp = _get_nlp()
     if nlp is not None:
         try:
             doc = nlp(text)

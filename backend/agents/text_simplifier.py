@@ -10,12 +10,14 @@ Profile-specific system prompts ensure genuinely different
 transformations for ADHD, Dyslexia, and Autism modes.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import logging
 import asyncio
 import textstat
-from typing import Optional
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
@@ -327,6 +329,162 @@ async def simplify_text(
         "readability_after": round(readability_after, 2),
         "improvement": round(readability_after - readability_before, 2),
     }
+
+
+# --- Batch Simplification (single LLM call for all chunks) ---
+
+async def simplify_batch(
+    chunks: list[str],
+    profile: str = "adhd",
+    api_key: Optional[str] = None,
+) -> list[dict]:
+    """
+    Batch-simplify multiple chunks using ONE LLM call instead of N.
+    Dramatically reduces latency: 5 chunks → 1 API call instead of 5.
+    Falls back to individual rule-based processing on failure.
+    """
+    results: list[Optional[dict]] = [None] * len(chunks)
+    llm_indices = []
+    preprocessed_map = {}
+
+    # Phase 1: Triage — decide which chunks need LLM vs rule-based
+    for i, text in enumerate(chunks):
+        if not text or len(text.strip()) < 20:
+            results[i] = {
+                "simplified_text": text,
+                "method": "passthrough",
+                "readability_before": 0,
+                "readability_after": 0,
+                "improvement": 0,
+            }
+            continue
+
+        readability_before = textstat.flesch_reading_ease(text)
+        preprocessed = _rule_based_simplify(text)
+        preprocessed_readability = textstat.flesch_reading_ease(preprocessed)
+        rule_improvement = preprocessed_readability - readability_before
+
+        text_is_simple = readability_before >= 70 or rule_improvement > 15
+        text_is_short = len(text.split()) < 25
+
+        if (api_key and _gemini_available and not text_is_simple
+                and not text_is_short and not _is_circuit_open()):
+            llm_indices.append(i)
+            preprocessed_map[i] = preprocessed
+        else:
+            results[i] = {
+                "simplified_text": preprocessed,
+                "method": "rule_based",
+                "readability_before": round(readability_before, 2),
+                "readability_after": round(preprocessed_readability, 2),
+                "improvement": round(preprocessed_readability - readability_before, 2),
+            }
+
+    # Phase 2: Single batched LLM call for all chunks that need it
+    if llm_indices and api_key:
+        llm_texts = [preprocessed_map[i] for i in llm_indices]
+        logger.info(f"Batch LLM: {len(llm_texts)} chunks in 1 call (skipped {len(chunks) - len(llm_texts)} simple)")
+
+        try:
+            llm_results = await asyncio.wait_for(
+                _llm_simplify_batch(llm_texts, profile, api_key),
+                timeout=12.0,
+            )
+            _record_llm_success()
+
+            for j, idx in enumerate(llm_indices):
+                original = chunks[idx]
+                rb = textstat.flesch_reading_ease(original)
+
+                if j < len(llm_results) and llm_results[j] and _validate_simplification(original, llm_results[j]):
+                    simplified = llm_results[j]
+                    method = "llm"
+                else:
+                    simplified = preprocessed_map[idx]
+                    method = "rule_based"
+
+                ra = textstat.flesch_reading_ease(simplified)
+                results[idx] = {
+                    "simplified_text": simplified,
+                    "method": method,
+                    "readability_before": round(rb, 2),
+                    "readability_after": round(ra, 2),
+                    "improvement": round(ra - rb, 2),
+                }
+
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning(f"Batch LLM failed ({type(e).__name__}), falling back to rule-based")
+            _record_llm_failure()
+
+    # Phase 3: Fill any remaining gaps with rule-based
+    for i in range(len(results)):
+        if results[i] is None:
+            original = chunks[i]
+            pre = _rule_based_simplify(original)
+            rb = textstat.flesch_reading_ease(original)
+            ra = textstat.flesch_reading_ease(pre)
+            results[i] = {
+                "simplified_text": pre,
+                "method": "rule_based",
+                "readability_before": round(rb, 2),
+                "readability_after": round(ra, 2),
+                "improvement": round(ra - rb, 2),
+            }
+
+    return results
+
+
+async def _llm_simplify_batch(
+    chunks: list[str], profile: str, api_key: str
+) -> list[str]:
+    """Send multiple chunks in a single Gemini call with delimiters."""
+    system_prompt = SYSTEM_PROMPTS.get(profile, SYSTEM_PROMPTS["custom"])
+
+    numbered = "\n\n===CHUNK===\n\n".join(
+        f"[{i+1}] {chunk}" for i, chunk in enumerate(chunks)
+    )
+
+    prompt = f"""{system_prompt}
+
+---
+You are given {len(chunks)} text chunks separated by ===CHUNK===.
+Simplify EACH chunk independently according to the rules above.
+Keep the [{'{N}'}] numbering and ===CHUNK=== delimiters in your response.
+Output ONLY the simplified text for each chunk. No preamble.
+---
+
+{numbered}"""
+
+    try:
+        _ensure_gemini_configured(api_key)
+        response = await _gemini_model.generate_content_async(prompt)
+        if response and response.text:
+            return _parse_batch_response(response.text, len(chunks))
+    except Exception as e:
+        logger.error(f"Batch Gemini SDK failed: {e}")
+
+    # Fallback: REST API
+    result = await _rest_fallback(prompt, api_key)
+    if result:
+        return _parse_batch_response(result, len(chunks))
+
+    return []
+
+
+def _parse_batch_response(response_text: str, expected_count: int) -> list[str]:
+    """Parse a batched Gemini response back into individual chunks."""
+    parts = response_text.split("===CHUNK===")
+    results = []
+    for part in parts:
+        cleaned = re.sub(r'\[\d+\]\s*', '', part).strip()
+        if cleaned:
+            results.append(cleaned)
+
+    # Pad if we got fewer results than expected
+    while len(results) < expected_count:
+        results.append("")
+
+    return results[:expected_count]
 
 
 # --- Circuit Breaker for Rate Limits ---

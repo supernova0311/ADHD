@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import time
+import copy
 import hashlib
 import logging
 from typing import Optional, List
@@ -18,6 +19,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -65,19 +67,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — Restrict to Chrome extension and local development origins
+# CORS — Allow all origins (chrome-extension://* is not a valid pattern)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "chrome-extension://*",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:8000",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Gzip compression — 60-80% payload reduction
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 # --- Request / Response Models ---
@@ -164,7 +164,7 @@ async def process_content(request: ProcessRequest):
         cache_key = _make_cache_key(request.chunks, request.profile)
         if cache_key in _response_cache:
             logger.info(f"Cache HIT for key={cache_key[:8]}... profile={request.profile}")
-            cached = _response_cache[cache_key]
+            cached = copy.deepcopy(_response_cache[cache_key])
             cached.metrics["cache_hit"] = True
             cached.metrics["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
             return cached

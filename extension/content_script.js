@@ -105,7 +105,7 @@
       // Step 1: Extract text content
       updateProgress('Extracting text content...', 15);
       const textElements = extractTextElements();
-      const chunks = chunkTextElements(textElements);
+      const { chunks, chunkMap } = chunkTextElements(textElements);
 
       // Step 2: Build DOM snapshot
       updateProgress('Analyzing page structure...', 30);
@@ -121,7 +121,7 @@
 
       // Step 4: Apply text transformations
       updateProgress('Simplifying text...', 65);
-      applyTextTransformations(textElements, apiResponse.simplified_chunks);
+      applyTextTransformations(textElements, apiResponse.simplified_chunks, chunkMap);
 
       // Step 5: Inject visual CSS
       updateProgress('Applying visual adaptations...', 75);
@@ -311,27 +311,33 @@
 
   function chunkTextElements(textElements) {
     const chunks = [];
+    const chunkMap = []; // Maps chunk index → array of element indices
     let currentChunk = [];
+    let currentIndices = [];
     let currentWordCount = 0;
 
-    textElements.forEach(({ text }) => {
+    textElements.forEach(({ text }, idx) => {
       const words = text.split(/\s+/).length;
 
       if (currentWordCount + words > MAX_CHUNK_WORDS && currentChunk.length > 0) {
         chunks.push(currentChunk.join('\n\n'));
+        chunkMap.push(currentIndices);
         currentChunk = [];
+        currentIndices = [];
         currentWordCount = 0;
       }
 
       currentChunk.push(text);
+      currentIndices.push(idx);
       currentWordCount += words;
     });
 
     if (currentChunk.length > 0) {
       chunks.push(currentChunk.join('\n\n'));
+      chunkMap.push(currentIndices);
     }
 
-    return chunks.length > 0 ? chunks : [''];
+    return { chunks: chunks.length > 0 ? chunks : [''], chunkMap };
   }
 
 
@@ -420,38 +426,37 @@
   // DOM TRANSFORMATIONS
   // =============================================
 
-  function applyTextTransformations(textElements, simplifiedChunks) {
+  function applyTextTransformations(textElements, simplifiedChunks, chunkMap) {
     if (!simplifiedChunks || simplifiedChunks.length === 0) return;
 
-    // Flatten simplified chunks back to individual paragraphs
-    const simplifiedTexts = simplifiedChunks.join('\n\n').split('\n\n').filter(t => t.trim());
+    // Map each chunk back to its individual elements
+    simplifiedChunks.forEach((chunk, chunkIdx) => {
+      if (!chunkMap || !chunkMap[chunkIdx]) return;
+      const elementIndices = chunkMap[chunkIdx];
+      const paragraphs = chunk.split('\n\n').filter(t => t.trim());
 
-    const elementsToUpdate = textElements.slice(0, simplifiedTexts.length);
+      elementIndices.forEach((elIdx, i) => {
+        const item = textElements[elIdx];
+        if (!item) return;
+        const simplified = paragraphs[i] || paragraphs[paragraphs.length - 1];
+        if (!simplified || simplified === item.text) return;
 
-    elementsToUpdate.forEach((item, index) => {
-      const simplified = simplifiedTexts[index];
-      if (simplified && simplified !== item.text) {
         // Save original for reset
         originalTexts.set(item.element, item.text);
-
-        // Save original inline styles for full restore
         modifiedStyles.set(item.element, {
           'border-left': item.element.style.borderLeft || null,
           'padding-left': item.element.style.paddingLeft || null,
         });
 
-        // Apply simplified text — preserve child elements if possible
         if (item.hasChildElements) {
-          // Only replace direct text nodes, preserve <a>, <strong>, etc.
           replaceTextNodesOnly(item.element, simplified);
         } else {
           item.element.textContent = simplified;
         }
 
-        // Add visual indicator that this text was simplified
         item.element.style.borderLeft = '2px solid rgba(99, 102, 241, 0.3)';
         item.element.style.paddingLeft = '8px';
-      }
+      });
     });
   }
 
@@ -952,6 +957,8 @@
   // 2. SPOTLIGHT FOCUS MODE
   // =============================================
 
+  let _spotlightThrottled = false;
+
   function enableSpotlightMode() {
     if (spotlightActive) return;
     spotlightActive = true;
@@ -975,7 +982,14 @@
     `;
     document.head.appendChild(style);
 
-    spotlightScrollHandler = () => requestAnimationFrame(updateSpotlight);
+    spotlightScrollHandler = () => {
+      if (_spotlightThrottled) return;
+      _spotlightThrottled = true;
+      requestAnimationFrame(() => {
+        updateSpotlight();
+        setTimeout(() => { _spotlightThrottled = false; }, 60);
+      });
+    };
     window.addEventListener('scroll', spotlightScrollHandler, { passive: true });
     updateSpotlight();
   }
@@ -1128,15 +1142,17 @@
       document.querySelectorAll(tag).forEach(el => {
         const text = el.textContent?.trim();
         if (text && text.length >= 10 && isVisible(el)) {
-          content.push({ tag: el.tagName.toLowerCase(), text });
+          // Use innerHTML but sanitize dangerous content
+          let safeHtml = el.innerHTML
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
+            .replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
+          content.push({ tag: el.tagName.toLowerCase(), html: safeHtml });
         }
       });
     });
 
-    const html = content.map(el => {
-      const t = el.text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `<${el.tag}>${t}</${el.tag}>`;
-    }).join('\n');
+    const html = content.map(el => `<${el.tag}>${el.html}</${el.tag}>`).join('\n');
 
     const reader = document.createElement('div');
     reader.id = 'neuroui-reader';

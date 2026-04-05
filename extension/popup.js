@@ -226,7 +226,9 @@ function selectProfile(profile) {
 
   // Update button states
   profileButtons.forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.profile === profile);
+    const isSelected = btn.dataset.profile === profile;
+    btn.classList.toggle('selected', isSelected);
+    btn.setAttribute('aria-checked', isSelected ? 'true' : 'false');
   });
 
   // Save selection
@@ -422,8 +424,10 @@ async function toggleVisualFeature(feature, btn) {
 
     if (response && response.active) {
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
     } else {
       btn.classList.remove('active');
+      btn.setAttribute('aria-pressed', 'false');
     }
   } catch (err) {
     console.error('Visual feature error:', err);

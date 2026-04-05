@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="popup-container">
+  <div class="popup-container" role="main" aria-label="NeuroUI Accessibility Controls">
     <!-- Header -->
     <header class="popup-header">
       <div class="logo-group">
@@ -18,8 +18,8 @@
     </header>
 
     <!-- Status Bar -->
-    <div class="status-bar" id="status-bar">
-      <span class="status-dot" id="status-dot"></span>
+    <div class="status-bar" id="status-bar" role="status" aria-live="polite">
+      <span class="status-dot" id="status-dot" aria-hidden="true"></span>
       <span class="status-text" id="status-text">Inactive</span>
     </div>
 
@@ -33,13 +33,13 @@
         </div>
       </div>
       <label class="toggle-switch">
-        <input type="checkbox" id="adblock-toggle" checked>
-        <span class="toggle-slider"></span>
+        <input type="checkbox" id="adblock-toggle" checked aria-label="Toggle ad blocker">
+        <span class="toggle-slider" aria-hidden="true"></span>
       </label>
     </div>
 
     <!-- CLS Score Display -->
-    <div class="cls-display" id="cls-display" style="display: none;">
+    <div class="cls-display" id="cls-display" style="display: none;" role="region" aria-label="Cognitive Load Scores" aria-live="polite">
       <div class="cls-card cls-before">
         <span class="cls-label">Before</span>
         <span class="cls-value" id="cls-before-value">—</span>
@@ -58,23 +58,23 @@
         <a href="#" id="quiz-link" style="font-size: 11px; color: #6366f1; text-decoration: none; cursor: pointer;">🧩 Find my profile</a>
       </div>
       <div class="profile-grid">
-        <button class="profile-btn" id="btn-adhd" data-profile="adhd">
-          <span class="profile-emoji">⚡</span>
+        <button class="profile-btn" id="btn-adhd" data-profile="adhd" role="radio" aria-checked="false" aria-label="ADHD Focus Mode">
+          <span class="profile-emoji" aria-hidden="true">⚡</span>
           <span class="profile-name">ADHD</span>
           <span class="profile-desc">Focus & clarity</span>
         </button>
-        <button class="profile-btn" id="btn-dyslexia" data-profile="dyslexia">
-          <span class="profile-emoji">📖</span>
+        <button class="profile-btn" id="btn-dyslexia" data-profile="dyslexia" role="radio" aria-checked="false" aria-label="Dyslexia Reading Mode">
+          <span class="profile-emoji" aria-hidden="true">📖</span>
           <span class="profile-name">Dyslexia</span>
           <span class="profile-desc">Spacing & fonts</span>
         </button>
-        <button class="profile-btn" id="btn-autism" data-profile="autism">
-          <span class="profile-emoji">🧘</span>
+        <button class="profile-btn" id="btn-autism" data-profile="autism" role="radio" aria-checked="false" aria-label="Autism Calm Mode">
+          <span class="profile-emoji" aria-hidden="true">🧘</span>
           <span class="profile-name">Autism</span>
           <span class="profile-desc">Calm & literal</span>
         </button>
-        <button class="profile-btn" id="btn-custom" data-profile="custom">
-          <span class="profile-emoji">⚙️</span>
+        <button class="profile-btn" id="btn-custom" data-profile="custom" role="radio" aria-checked="false" aria-label="Custom Profile">
+          <span class="profile-emoji" aria-hidden="true">⚙️</span>
           <span class="profile-name">Custom</span>
           <span class="profile-desc">Your settings</span>
         </button>
@@ -123,40 +123,40 @@
     </section>
 
     <!-- Action Buttons -->
-    <div class="action-group">
-      <button class="btn-primary" id="btn-activate">
-        <span class="btn-icon">🧠</span> Activate NeuroUI
+    <div class="action-group" role="group" aria-label="Actions">
+      <button class="btn-primary" id="btn-activate" aria-label="Activate NeuroUI">
+        <span class="btn-icon" aria-hidden="true">🧠</span> Activate NeuroUI
       </button>
-      <button class="btn-secondary" id="btn-heatmap" title="Visualize cognitive load across the page">
-        <span class="btn-icon">🔥</span> Cognitive Heatmap
+      <button class="btn-secondary" id="btn-heatmap" title="Visualize cognitive load across the page" aria-label="Toggle Cognitive Heatmap">
+        <span class="btn-icon" aria-hidden="true">🔥</span> Cognitive Heatmap
       </button>
-      <button class="btn-secondary" id="btn-reset" style="display: none;">
-        <span class="btn-icon">↩️</span> Reset Page
+      <button class="btn-secondary" id="btn-reset" style="display: none;" aria-label="Reset page to original">
+        <span class="btn-icon" aria-hidden="true">↩️</span> Reset Page
       </button>
     </div>
 
     <!-- Visual Enhancements -->
-    <section class="visual-section">
+    <section class="visual-section" aria-label="Visual Enhancements">
       <h2>Visual Enhancements</h2>
-      <div class="feature-grid">
-        <button class="feature-btn" id="btn-bionic" title="Bold first half of each word for guided reading">
-          <span class="feature-icon">📖</span>
+      <div class="feature-grid" role="toolbar" aria-label="Visual feature toggles">
+        <button class="feature-btn" id="btn-bionic" title="Bold first half of each word for guided reading" aria-pressed="false">
+          <span class="feature-icon" aria-hidden="true">📖</span>
           <span class="feature-label">Bionic</span>
         </button>
-        <button class="feature-btn" id="btn-spotlight" title="Dim everything except the paragraph you're reading">
-          <span class="feature-icon">🔦</span>
+        <button class="feature-btn" id="btn-spotlight" title="Dim everything except the paragraph you're reading" aria-pressed="false">
+          <span class="feature-icon" aria-hidden="true">🔦</span>
           <span class="feature-label">Spotlight</span>
         </button>
-        <button class="feature-btn" id="btn-minimap" title="Show cognitive difficulty zones on scrollbar">
-          <span class="feature-icon">📊</span>
+        <button class="feature-btn" id="btn-minimap" title="Show cognitive difficulty zones on scrollbar" aria-pressed="false">
+          <span class="feature-icon" aria-hidden="true">📊</span>
           <span class="feature-label">CLS Map</span>
         </button>
-        <button class="feature-btn" id="btn-reader" title="Clean single-column reading view">
-          <span class="feature-icon">📄</span>
+        <button class="feature-btn" id="btn-reader" title="Clean single-column reading view" aria-pressed="false">
+          <span class="feature-icon" aria-hidden="true">📄</span>
           <span class="feature-label">Reader</span>
         </button>
-        <button class="feature-btn" id="btn-progress" title="Show reading progress bar at top">
-          <span class="feature-icon">📏</span>
+        <button class="feature-btn" id="btn-progress" title="Show reading progress bar at top" aria-pressed="false">
+          <span class="feature-icon" aria-hidden="true">📏</span>
           <span class="feature-label">Progress</span>
         </button>
       </div>

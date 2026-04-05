@@ -41,9 +41,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 
+// --- Response Cache ---
+const API_CACHE = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 50;
+
+function hashKey(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h) + str.charCodeAt(i);
+    h |= 0;
+  }
+  return h.toString(36);
+}
+
+
 async function handleAPICall(message) {
   const { endpoint, method, body } = message;
   const apiBase = await getAPIBase();
+
+  // Check cache
+  const cacheKey = hashKey(endpoint + JSON.stringify(body || {}));
+  const cached = API_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.time < CACHE_TTL) {
+    console.log(`[NeuroUI] Cache HIT for ${endpoint} (${API_CACHE.size} entries)`);
+    return { ...cached.data, _cached: true };
+  }
 
   try {
     const response = await fetch(`${apiBase}${endpoint}`, {
@@ -59,7 +82,19 @@ async function handleAPICall(message) {
       throw new Error(`API error ${response.status}: ${errorText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+
+    // Store in cache
+    API_CACHE.set(cacheKey, { data, time: Date.now() });
+
+    // Evict oldest if over limit
+    if (API_CACHE.size > MAX_CACHE_SIZE) {
+      const oldest = API_CACHE.keys().next().value;
+      API_CACHE.delete(oldest);
+    }
+
+    console.log(`[NeuroUI] Cache MISS for ${endpoint} — stored (${API_CACHE.size} entries)`);
+    return data;
 
   } catch (error) {
     console.error('[NeuroUI Background] API call failed:', error);
@@ -82,11 +117,13 @@ chrome.commands.onCommand.addListener(async (command) => {
       await chrome.storage.local.set({ isActive: false, cls_before: null, cls_after: null });
       console.log('[NeuroUI] Deactivated via keyboard shortcut');
     } else if (profile) {
-      // Activate with last-used profile
+      // Load saved custom settings
+      const { customSettings } = await chrome.storage.local.get('customSettings');
+
       chrome.tabs.sendMessage(tab.id, {
         action: 'ACTIVATE',
         profile: profile,
-        settings: {},
+        settings: customSettings || {},
       }).catch(() => {});
       await chrome.storage.local.set({ isActive: true });
       console.log(`[NeuroUI] Activated via keyboard shortcut (${profile})`);
