@@ -22,6 +22,21 @@
 
 ---
 
+## 👀 See It In Action
+
+<p align="center">
+  <img src="assets/NeuroAI_1.png" alt="NeuroUI Popup — Profile Selection & Activation" width="380" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/NeuroAI_2.png" alt="NeuroUI Popup — Fine-tune Settings & Visual Enhancements" width="380" />
+</p>
+
+<p align="center">
+  <sub><b>Left:</b> Profile selection with ADHD/Dyslexia/Autism/Custom modes, ad blocker stats, and one-click activation</sub><br/>
+  <sub><b>Right:</b> Fine-tune controls — text simplification level, spacing, font size, color mode, and visual enhancements (Bionic Reading, CLS Map, Reader Mode, Progress Bar)</sub>
+</p>
+
+---
+
 ## 🧠 What is NeuroUI?
 
 NeuroUI is a **research-grade Multi-Agent System (MAS)** that intercepts, analyzes, and restructures web content in real-time to make the internet more accessible for neurodivergent users. It combines LLM-powered text simplification with deterministic visual transformations grounded in peer-reviewed cognitive science research.
