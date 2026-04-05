@@ -33,8 +33,7 @@
 
   // Visual feature state
   let bionicActive = false;
-  let spotlightActive = false;
-  let spotlightScrollHandler = null;
+
   let minimapActive = false;
   let minimapScrollHandler = null;
   let readerActive = false;
@@ -83,7 +82,7 @@
     if (message.action === 'GET_FEATURE_STATUS') {
       sendResponse({
         bionic: bionicActive,
-        spotlight: spotlightActive,
+
         minimap: minimapActive,
         reader: readerActive,
         progress: progressBarActive,
@@ -237,7 +236,7 @@
 
     // 8. Clean up visual features
     if (bionicActive) disableBionicReading();
-    if (spotlightActive) disableSpotlightMode();
+
     if (minimapActive) disableMinimap();
     if (readerActive) disableReaderMode();
     if (progressBarActive) disableProgressBar();
@@ -864,9 +863,7 @@
       case 'bionic':
         if (bionicActive) { disableBionicReading(); return { active: false }; }
         enableBionicReading(); return { active: true };
-      case 'spotlight':
-        if (spotlightActive) { disableSpotlightMode(); return { active: false }; }
-        enableSpotlightMode(); return { active: true };
+
       case 'minimap':
         if (minimapActive) { disableMinimap(); return { active: false }; }
         await enableMinimap(); return { active: minimapActive };
@@ -953,80 +950,7 @@
   }
 
 
-  // =============================================
-  // 2. SPOTLIGHT FOCUS MODE
-  // =============================================
 
-  let _spotlightThrottled = false;
-
-  function enableSpotlightMode() {
-    if (spotlightActive) return;
-    spotlightActive = true;
-
-    const style = document.createElement('style');
-    style.id = 'neuroui-spotlight-css';
-    style.textContent = `
-      .neuroui-spotlight-focus {
-        box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.82) !important;
-        position: relative !important;
-        z-index: 99998 !important;
-        border-radius: 8px !important;
-        padding: 10px 14px !important;
-        transition: box-shadow 0.3s ease !important;
-      }
-      @media (prefers-color-scheme: dark) {
-        .neuroui-spotlight-focus {
-          background-color: rgba(30, 30, 40, 0.98) !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-
-    spotlightScrollHandler = () => {
-      if (_spotlightThrottled) return;
-      _spotlightThrottled = true;
-      requestAnimationFrame(() => {
-        updateSpotlight();
-        setTimeout(() => { _spotlightThrottled = false; }, 60);
-      });
-    };
-    window.addEventListener('scroll', spotlightScrollHandler, { passive: true });
-    updateSpotlight();
-  }
-
-  function updateSpotlight() {
-    if (!spotlightActive) return;
-    const selector = [...TEXT_TAGS, ...HEADING_TAGS].join(', ');
-    const paragraphs = document.querySelectorAll(selector);
-    const center = window.innerHeight / 2;
-    let closest = null;
-    let closestDist = Infinity;
-
-    const prev = document.querySelector('.neuroui-spotlight-focus');
-    if (prev) prev.classList.remove('neuroui-spotlight-focus');
-
-    paragraphs.forEach(p => {
-      if (p.closest('#neuroui-reader') || p.closest('#neuroui-cls-badge')) return;
-      const rect = p.getBoundingClientRect();
-      if (rect.height === 0 || rect.bottom < 0 || rect.top > window.innerHeight) return;
-      const dist = Math.abs(rect.top + rect.height / 2 - center);
-      if (dist < closestDist) { closestDist = dist; closest = p; }
-    });
-
-    if (closest) closest.classList.add('neuroui-spotlight-focus');
-  }
-
-  function disableSpotlightMode() {
-    spotlightActive = false;
-    if (spotlightScrollHandler) {
-      window.removeEventListener('scroll', spotlightScrollHandler);
-      spotlightScrollHandler = null;
-    }
-    const prev = document.querySelector('.neuroui-spotlight-focus');
-    if (prev) prev.classList.remove('neuroui-spotlight-focus');
-    const style = document.getElementById('neuroui-spotlight-css');
-    if (style) style.remove();
-  }
 
 
   // =============================================

@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tab) {
       chrome.tabs.sendMessage(tab.id, { action: 'GET_FEATURE_STATUS' }, (status) => {
         if (chrome.runtime.lastError || !status) return;
-        const features = ['bionic', 'spotlight', 'minimap', 'reader', 'progress'];
+        const features = ['bionic', 'minimap', 'reader', 'progress'];
         features.forEach(f => {
           const btn = document.getElementById(`btn-${f}`);
           if (btn && status[f]) btn.classList.add('active');
@@ -185,7 +185,7 @@ function setupEventListeners() {
   }
 
   // Visual feature toggles
-  const features = ['bionic', 'spotlight', 'minimap', 'reader', 'progress'];
+  const features = ['bionic', 'minimap', 'reader', 'progress'];
   features.forEach(feature => {
     const btn = document.getElementById(`btn-${feature}`);
     if (btn) {

@@ -14,12 +14,15 @@ import time
 import copy
 import hashlib
 import logging
+import asyncio
+from collections import defaultdict
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -78,6 +81,53 @@ app.add_middleware(
 
 # Gzip compression — 60-80% payload reduction
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+# --- Rate Limiting & Concurrency Controls ---
+
+# Max concurrent /api/process calls (prevents memory explosion)
+_PROCESS_SEMAPHORE = asyncio.Semaphore(20)
+
+# Per-IP sliding window rate limiter
+_RATE_LIMIT_WINDOW = 60       # seconds
+_RATE_LIMIT_MAX_REQUESTS = 30 # max requests per window per IP
+_ip_request_log: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_rate_limit(client_ip: str) -> bool:
+    """Returns True if request is allowed, False if rate-limited."""
+    now = time.time()
+    window_start = now - _RATE_LIMIT_WINDOW
+
+    # Prune old entries
+    _ip_request_log[client_ip] = [
+        t for t in _ip_request_log[client_ip] if t > window_start
+    ]
+
+    if len(_ip_request_log[client_ip]) >= _RATE_LIMIT_MAX_REQUESTS:
+        return False
+
+    _ip_request_log[client_ip].append(now)
+    return True
+
+
+# Periodic cleanup of stale IPs (prevent memory leak)
+_CLEANUP_INTERVAL = 300  # every 5 min
+_last_cleanup = time.time()
+
+
+def _cleanup_stale_ips():
+    global _last_cleanup
+    now = time.time()
+    if now - _last_cleanup < _CLEANUP_INTERVAL:
+        return
+    _last_cleanup = now
+    window_start = now - _RATE_LIMIT_WINDOW
+    stale = [ip for ip, times in _ip_request_log.items() if not times or times[-1] < window_start]
+    for ip in stale:
+        del _ip_request_log[ip]
+    if stale:
+        logger.info(f"Rate limiter cleanup: removed {len(stale)} stale IPs")
 
 
 # --- Request / Response Models ---
@@ -148,7 +198,7 @@ def _make_cache_key(chunks: list, profile: str) -> str:
 # --- Endpoints ---
 
 @app.post("/api/process", response_model=ProcessResponse)
-async def process_content(request: ProcessRequest):
+async def process_content(request: ProcessRequest, req: Request):
     """
     Process web page content through the Multi-Agent System pipeline.
 
@@ -156,68 +206,93 @@ async def process_content(request: ProcessRequest):
     instructions (simplified text + CSS + JS commands) along with
     before/after Cognitive Load Scores.
     """
-    try:
-        t_start = time.perf_counter()
-        api_key = os.getenv("GEMINI_API_KEY")
+    # --- Rate limit check ---
+    client_ip = req.client.host if req.client else "unknown"
+    _cleanup_stale_ips()
 
-        # Check cache first
-        cache_key = _make_cache_key(request.chunks, request.profile)
-        if cache_key in _response_cache:
-            logger.info(f"Cache HIT for key={cache_key[:8]}... profile={request.profile}")
-            cached = copy.deepcopy(_response_cache[cache_key])
-            cached.metrics["cache_hit"] = True
-            cached.metrics["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
-            return cached
-
-        # Convert Pydantic models to dicts for internal processing
-        dom_snapshot = None
-        if request.dom_snapshot:
-            dom_snapshot = request.dom_snapshot.model_dump()
-
-        custom_settings = None
-        if request.custom_settings:
-            custom_settings = request.custom_settings.model_dump()
-
-        result = await process_page(
-            chunks=request.chunks,
-            profile=request.profile,
-            dom_snapshot=dom_snapshot,
-            custom_settings=custom_settings,
-            api_key=api_key,
-        )
-
-        # Add latency to metrics
-        latency_ms = round((time.perf_counter() - t_start) * 1000, 1)
-        result["metrics"]["latency_ms"] = latency_ms
-        result["metrics"]["cache_hit"] = False
-        logger.info(f"Processed in {latency_ms}ms | profile={request.profile} | chunks={len(request.chunks)}")
-
-        response = ProcessResponse(
-            simplified_chunks=result["simplified_chunks"],
-            visual_css=result["visual_css"],
-            focus_css=result["focus_actions"]["css_rules"],
-            focus_js_commands=result["focus_actions"]["js_commands"],
-            hide_selectors=result["focus_actions"]["hide_selectors"],
-            cls_before=result["cls_before"],
-            cls_after=result["cls_after"],
-            cls_improvement=result["cls_improvement"],
-            metrics=result["metrics"],
-        )
-
-        # Store in cache (evict oldest if full)
-        if len(_response_cache) >= MAX_CACHE_SIZE:
-            oldest_key = next(iter(_response_cache))
-            del _response_cache[oldest_key]
-        _response_cache[cache_key] = response
-
-        return response
-
-    except Exception as e:
-        logger.error(f"Processing error: {e}", exc_info=True)
+    if not _check_rate_limit(client_ip):
+        logger.warning(f"Rate limited: {client_ip}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Processing failed: {str(e)}"
+            status_code=429,
+            detail="Too many requests. Please wait before retrying.",
+            headers={"Retry-After": "60"},
         )
+
+    # --- Concurrency gate ---
+    if _PROCESS_SEMAPHORE.locked() and _PROCESS_SEMAPHORE._value == 0:
+        # All 20 slots occupied — reject immediately instead of queuing
+        logger.warning(f"Server overloaded: rejecting request from {client_ip}")
+        raise HTTPException(
+            status_code=503,
+            detail="Server is at capacity. Please retry shortly.",
+            headers={"Retry-After": "5"},
+        )
+
+    async with _PROCESS_SEMAPHORE:
+        try:
+            t_start = time.perf_counter()
+            api_key = os.getenv("GEMINI_API_KEY")
+
+            # Check cache first
+            cache_key = _make_cache_key(request.chunks, request.profile)
+            if cache_key in _response_cache:
+                logger.info(f"Cache HIT for key={cache_key[:8]}... profile={request.profile}")
+                cached = copy.deepcopy(_response_cache[cache_key])
+                cached.metrics["cache_hit"] = True
+                cached.metrics["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
+                return cached
+
+            # Convert Pydantic models to dicts for internal processing
+            dom_snapshot = None
+            if request.dom_snapshot:
+                dom_snapshot = request.dom_snapshot.model_dump()
+
+            custom_settings = None
+            if request.custom_settings:
+                custom_settings = request.custom_settings.model_dump()
+
+            result = await process_page(
+                chunks=request.chunks,
+                profile=request.profile,
+                dom_snapshot=dom_snapshot,
+                custom_settings=custom_settings,
+                api_key=api_key,
+            )
+
+            # Add latency to metrics
+            latency_ms = round((time.perf_counter() - t_start) * 1000, 1)
+            result["metrics"]["latency_ms"] = latency_ms
+            result["metrics"]["cache_hit"] = False
+            logger.info(f"Processed in {latency_ms}ms | profile={request.profile} | chunks={len(request.chunks)}")
+
+            response = ProcessResponse(
+                simplified_chunks=result["simplified_chunks"],
+                visual_css=result["visual_css"],
+                focus_css=result["focus_actions"]["css_rules"],
+                focus_js_commands=result["focus_actions"]["js_commands"],
+                hide_selectors=result["focus_actions"]["hide_selectors"],
+                cls_before=result["cls_before"],
+                cls_after=result["cls_after"],
+                cls_improvement=result["cls_improvement"],
+                metrics=result["metrics"],
+            )
+
+            # Store in cache (evict oldest if full)
+            if len(_response_cache) >= MAX_CACHE_SIZE:
+                oldest_key = next(iter(_response_cache))
+                del _response_cache[oldest_key]
+            _response_cache[cache_key] = response
+
+            return response
+
+        except HTTPException:
+            raise  # Re-raise rate limit / overload errors as-is
+        except Exception as e:
+            logger.error(f"Processing error: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Processing failed: {str(e)}"
+            )
 
 
 class HeatmapRequest(BaseModel):
