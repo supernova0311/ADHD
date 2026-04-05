@@ -127,12 +127,21 @@
       <button class="btn-primary" id="btn-activate" aria-label="Activate NeuroUI">
         <span class="btn-icon" aria-hidden="true">🧠</span> Activate NeuroUI
       </button>
+      <div class="shortcut-hint" aria-label="Keyboard shortcut">
+        <kbd>Alt</kbd> + <kbd>N</kbd> to toggle from any page
+      </div>
       <button class="btn-secondary" id="btn-heatmap" title="Visualize cognitive load across the page" aria-label="Toggle Cognitive Heatmap">
         <span class="btn-icon" aria-hidden="true">🔥</span> Cognitive Heatmap
       </button>
       <button class="btn-secondary" id="btn-reset" style="display: none;" aria-label="Reset page to original">
         <span class="btn-icon" aria-hidden="true">↩️</span> Reset Page
       </button>
+    </div>
+
+    <!-- Processing Metrics (shown after activation) -->
+    <div class="metrics-bar" id="metrics-bar" style="display: none;" role="status" aria-live="polite">
+      <span class="metrics-icon">⚡</span>
+      <span class="metrics-text" id="metrics-text"></span>
     </div>
 
     <!-- Visual Enhancements -->

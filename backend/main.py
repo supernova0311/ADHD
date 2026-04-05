@@ -38,6 +38,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("neuroui")
 
+# --- Server Analytics ---
+_server_start_time = time.time()
+_total_requests = 0
+_total_cache_hits = 0
+_total_latency_ms = 0.0
+_profile_usage: dict[str, int] = defaultdict(int)
+_method_counts: dict[str, int] = defaultdict(int)
+_rate_limited_count = 0
+_overloaded_count = 0
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -207,11 +217,13 @@ async def process_content(request: ProcessRequest, req: Request):
     before/after Cognitive Load Scores.
     """
     # --- Rate limit check ---
+    global _total_requests, _total_cache_hits, _total_latency_ms, _rate_limited_count, _overloaded_count
     client_ip = req.client.host if req.client else "unknown"
     _cleanup_stale_ips()
 
     if not _check_rate_limit(client_ip):
         logger.warning(f"Rate limited: {client_ip}")
+        _rate_limited_count += 1
         raise HTTPException(
             status_code=429,
             detail="Too many requests. Please wait before retrying.",
@@ -222,6 +234,7 @@ async def process_content(request: ProcessRequest, req: Request):
     if _PROCESS_SEMAPHORE.locked() and _PROCESS_SEMAPHORE._value == 0:
         # All 20 slots occupied — reject immediately instead of queuing
         logger.warning(f"Server overloaded: rejecting request from {client_ip}")
+        _overloaded_count += 1
         raise HTTPException(
             status_code=503,
             detail="Server is at capacity. Please retry shortly.",
@@ -240,6 +253,10 @@ async def process_content(request: ProcessRequest, req: Request):
                 cached = copy.deepcopy(_response_cache[cache_key])
                 cached.metrics["cache_hit"] = True
                 cached.metrics["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
+                # Track analytics
+                _total_requests += 1
+                _total_cache_hits += 1
+                _profile_usage[request.profile] += 1
                 return cached
 
             # Convert Pydantic models to dicts for internal processing
@@ -264,6 +281,13 @@ async def process_content(request: ProcessRequest, req: Request):
             result["metrics"]["latency_ms"] = latency_ms
             result["metrics"]["cache_hit"] = False
             logger.info(f"Processed in {latency_ms}ms | profile={request.profile} | chunks={len(request.chunks)}")
+
+            # Track analytics
+            _total_requests += 1
+            _total_latency_ms += latency_ms
+            _profile_usage[request.profile] += 1
+            for method, count in result["metrics"].get("methods_used", {}).items():
+                _method_counts[method] += count
 
             response = ProcessResponse(
                 simplified_chunks=result["simplified_chunks"],
@@ -357,6 +381,52 @@ async def health_check():
         "service": "NeuroUI Backend",
         "llm_enabled": bool(api_key),
         "version": "1.2.0",
+    }
+
+
+@app.get("/api/stats")
+async def server_stats():
+    """
+    Live server analytics. Useful for demo dashboards and monitoring.
+    Returns request counts, cache efficiency, latency stats, and profile usage.
+    """
+    from agents.text_simplifier import _llm_failures, _llm_circuit_open_until
+    import time as _t
+
+    uptime_seconds = round(time.time() - _server_start_time)
+    hours, remainder = divmod(uptime_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    non_cached_requests = _total_requests - _total_cache_hits
+    avg_latency = round(_total_latency_ms / max(non_cached_requests, 1), 1)
+    cache_hit_rate = round((_total_cache_hits / max(_total_requests, 1)) * 100, 1)
+
+    circuit_open = _t.time() < _llm_circuit_open_until
+
+    return {
+        "uptime": f"{hours}h {minutes}m {seconds}s",
+        "uptime_seconds": uptime_seconds,
+        "requests": {
+            "total": _total_requests,
+            "cache_hits": _total_cache_hits,
+            "cache_hit_rate": f"{cache_hit_rate}%",
+            "rate_limited": _rate_limited_count,
+            "overloaded": _overloaded_count,
+        },
+        "performance": {
+            "avg_latency_ms": avg_latency,
+            "total_latency_ms": round(_total_latency_ms, 1),
+        },
+        "profiles": dict(_profile_usage),
+        "methods": dict(_method_counts),
+        "system": {
+            "cache_size": len(_response_cache),
+            "max_cache_size": MAX_CACHE_SIZE,
+            "tracked_ips": len(_ip_request_log),
+            "circuit_breaker": "OPEN" if circuit_open else "CLOSED",
+            "llm_consecutive_failures": _llm_failures,
+            "llm_enabled": bool(os.getenv("GEMINI_API_KEY")),
+        },
     }
 
 
