@@ -93,6 +93,151 @@ Unlike traditional accessibility tools that apply static CSS overrides, NeuroUI 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### 🔄 Complete Workflow — User Click to DOM Transformation
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Popup as Extension Popup
+    participant CS as Content Script
+    participant BG as Background Worker
+    participant API as FastAPI Backend
+    participant Orch as Orchestrator Agent
+    participant TS as Text Simplifier
+    participant VA as Visual Adapter
+    participant FA as Focus Agent
+    participant CLS as CLS Engine
+    participant Gemini as Gemini 2.0 Flash
+
+    User->>Popup: Click "Activate NeuroUI"
+    Popup->>Popup: Collect profile + custom settings
+
+    Popup->>CS: ACTIVATE message
+    activate CS
+
+    CS->>CS: Extract text elements from DOM
+    CS->>CS: Build DOM snapshot (nodes, depth, distractors)
+    CS->>CS: Chunk text (max 500 words/chunk)
+
+    CS->>BG: API_CALL /api/process
+    BG->>BG: Check response cache
+    alt Cache HIT
+        BG-->>CS: Return cached response
+    else Cache MISS
+        BG->>API: POST /api/process
+
+        activate API
+        API->>API: Rate limit check (30 req/min per IP)
+        API->>API: Concurrency gate (max 20 concurrent)
+
+        API->>Orch: process_page()
+        activate Orch
+
+        par Parallel Agent Dispatch
+            Orch->>CLS: compute_cls() BEFORE
+            CLS->>CLS: TextComplexity (Flesch ensemble)
+            CLS->>CLS: SyntacticLoad (spaCy MDD)
+            CLS->>CLS: DOMClutter (node/depth/distractor)
+            CLS-->>Orch: CLS_before score
+        and
+            Orch->>VA: get_visual_adaptations()
+            VA-->>Orch: Profile CSS rules
+        and
+            Orch->>FA: generate_focus_actions()
+            FA-->>Orch: Hide/pause/dim selectors
+        and
+            Orch->>TS: simplify_batch()
+            activate TS
+            TS->>TS: Rule-based pre-processing (jargon map)
+            TS->>TS: Check readability — skip if FRE ≥ 70
+
+            alt LLM Available & Circuit Closed
+                TS->>Gemini: Batch API call (all chunks in 1 request)
+                Gemini-->>TS: Simplified text
+                TS->>TS: Validate (Flesch + keyword overlap)
+            else LLM Unavailable or Circuit Open
+                TS->>TS: Use rule-based output
+            end
+            TS-->>Orch: Simplified chunks + method metadata
+            deactivate TS
+        end
+
+        Orch->>CLS: compute_cls() AFTER
+        CLS-->>Orch: CLS_after score
+
+        Orch-->>API: Aggregated response
+        deactivate Orch
+
+        API->>API: Cache response (SHA-256 key)
+        API-->>BG: JSON response
+        deactivate API
+    end
+
+    BG-->>CS: API response
+
+    CS->>CS: Replace text in DOM (preserve child elements)
+    CS->>CS: Inject visual CSS (profile-specific)
+    CS->>CS: Hide distractor elements
+    CS->>CS: Execute focus commands (pause media)
+    CS->>CS: Show CLS improvement badge
+
+    CS-->>Popup: Success + CLS scores + metrics
+    deactivate CS
+
+    Popup->>Popup: Show CLS Before → After
+    Popup->>Popup: Show "12 chunks in 340ms · Gemini AI"
+```
+
+### 🤖 Text Simplification Decision Flow
+
+```mermaid
+flowchart TD
+    A["📄 Input Text Chunk"] --> B{"Length ≥ 20 chars?"}
+    B -->|No| C["✅ Passthrough (unchanged)"]
+    B -->|Yes| D["🔧 Rule-based pre-processing"]
+    D --> E["Jargon replacement (170+ rules)"]
+    E --> F["Remove parenthetical asides"]
+    F --> G["Split at semicolons"]
+    G --> H{"Flesch Reading Ease ≥ 70?"}
+
+    H -->|Yes| I["✅ Already simple — skip LLM"]
+    H -->|No| J{"Rule-based improvement > 15 FRE?"}
+    J -->|Yes| I
+    J -->|No| K{"API key present?"}
+    K -->|No| L["✅ Return rule-based output"]
+    K -->|Yes| M{"Circuit breaker status?"}
+
+    M -->|OPEN| N["⏳ Cooldown (60s) — skip LLM"]
+    N --> L
+    M -->|CLOSED| O["🤖 Gemini 2.0 Flash API call"]
+
+    O -->|Success| P{"Validate output"}
+    P -->|"FRE improved + 40%+ keyword overlap"| Q["✅ Return LLM output"]
+    P -->|"Failed validation"| L
+
+    O -->|"429 Rate Limited"| R["⏳ Retry after 1s"]
+    R -->|Success| P
+    R -->|Fail| S["🌐 REST API fallback"]
+
+    O -->|"SDK Error"| S
+    S -->|Success| P
+    S -->|Fail| T["⚠️ Record failure"]
+    T --> U{"2+ consecutive failures?"}
+    U -->|Yes| V["🔴 Open circuit breaker (60s)"]
+    U -->|No| L
+    V --> L
+
+    O -->|"Timeout (10s)"| T
+
+    style A fill:#6366f1,stroke:#4f46e5,color:#fff
+    style Q fill:#22c55e,stroke:#16a34a,color:#fff
+    style I fill:#22c55e,stroke:#16a34a,color:#fff
+    style C fill:#9ca3af,stroke:#6b7280,color:#fff
+    style L fill:#facc15,stroke:#eab308,color:#000
+    style V fill:#ef4444,stroke:#dc2626,color:#fff
+    style O fill:#4285F4,stroke:#3b78e7,color:#fff
+```
+
 ---
 
 ## 🔬 The Science Behind CLS
